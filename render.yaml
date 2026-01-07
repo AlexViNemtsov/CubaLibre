@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: cuba-clasificados-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: FRONTEND_URL
+        value: https://cuba-clasificados.online
+      - key: WEB_APP_URL
+        value: https://cuba-clasificados.online
+      - key: UPLOAD_DIR
+        value: ./uploads

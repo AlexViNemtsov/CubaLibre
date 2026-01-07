@@ -1,0 +1,13 @@
+-- Миграция: добавление полей для квартир
+-- Выполните этот SQL если база данных уже создана
+
+ALTER TABLE listings 
+ADD COLUMN IF NOT EXISTS rooms VARCHAR(10),
+ADD COLUMN IF NOT EXISTS total_area DECIMAL(10, 2),
+ADD COLUMN IF NOT EXISTS living_area DECIMAL(10, 2),
+ADD COLUMN IF NOT EXISTS floor INTEGER,
+ADD COLUMN IF NOT EXISTS floor_from INTEGER,
+ADD COLUMN IF NOT EXISTS renovation VARCHAR(50),
+ADD COLUMN IF NOT EXISTS furniture VARCHAR(20),
+ADD COLUMN IF NOT EXISTS appliances VARCHAR(20),
+ADD COLUMN IF NOT EXISTS internet VARCHAR(20);
