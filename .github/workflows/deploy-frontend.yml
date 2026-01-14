@@ -1,0 +1,48 @@
+name: Deploy Frontend to reg.ru
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+        env:
+          VITE_API_URL: https://cubalibre.onrender.com/api
+
+      - name: Copy .htaccess to dist
+        run: cp .htaccess frontend/dist/.htaccess
+
+      - name: Deploy to reg.ru via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.REG_RU_FTP_HOST }}
+          username: ${{ secrets.REG_RU_FTP_USER }}
+          password: ${{ secrets.REG_RU_FTP_PASSWORD }}
+          local-dir: ./frontend/dist/
+          server-dir: /www/cuba-clasificados.online/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
