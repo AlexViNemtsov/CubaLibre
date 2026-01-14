@@ -31,8 +31,14 @@ jobs:
         env:
           VITE_API_URL: https://cubalibre.onrender.com/api
 
-      - name: Copy .htaccess to dist
-        run: cp .htaccess frontend/dist/.htaccess
+       - name: Copy .htaccess to dist
+        run: |
+          if [ -f .htaccess ]; then
+            cp .htaccess frontend/dist/.htaccess
+            echo "✅ .htaccess copied"
+          else
+            echo "⚠️ .htaccess not found, skipping"
+          fi
 
       - name: Deploy to reg.ru via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
