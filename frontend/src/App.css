@@ -1,0 +1,83 @@
+.app {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #F8F9FA 0%, #F0F2F5 100%);
+  padding-bottom: 80px;
+}
+
+.header {
+  background: linear-gradient(180deg, var(--bg-primary) 0%, #FAFBFC 100%);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid var(--border-light);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  flex: 1;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+.btn-back {
+  background: var(--bg-tertiary);
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-back:hover {
+  background: var(--border);
+  transform: scale(1.05);
+}
+
+.btn-back:active {
+  transform: scale(0.95);
+}
+
+.btn-add {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  border: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s;
+}
+
+.btn-add:hover {
+  transform: scale(1.1) rotate(90deg);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-add:active {
+  transform: scale(0.95) rotate(90deg);
+}
