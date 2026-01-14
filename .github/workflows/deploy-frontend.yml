@@ -31,7 +31,7 @@ jobs:
         env:
           VITE_API_URL: https://cubalibre.onrender.com/api
 
-       - name: Copy .htaccess to dist
+      - name: Copy .htaccess to dist
         run: |
           if [ -f .htaccess ]; then
             cp .htaccess frontend/dist/.htaccess
