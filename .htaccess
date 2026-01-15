@@ -8,35 +8,34 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ /index.html [L]
 
-# Кэширование статических файлов
+# АГРЕССИВНОЕ ОТКЛЮЧЕНИЕ КЕШИРОВАНИЯ для reg.ru
 <IfModule mod_expires.c>
   ExpiresActive On
-  # HTML не кешируем - всегда свежий
+  # Все файлы не кешируем
   ExpiresByType text/html "access plus 0 seconds"
-  ExpiresByType text/css "access plus 1 year"
-  ExpiresByType application/javascript "access plus 1 year"
-  ExpiresByType image/jpeg "access plus 1 year"
-  ExpiresByType image/png "access plus 1 year"
-  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType text/css "access plus 0 seconds"
+  ExpiresByType application/javascript "access plus 0 seconds"
+  ExpiresByType text/javascript "access plus 0 seconds"
+  ExpiresByType image/jpeg "access plus 0 seconds"
+  ExpiresByType image/png "access plus 0 seconds"
+  ExpiresByType image/webp "access plus 0 seconds"
 </IfModule>
 
-# Запрет кеширования HTML и JS файлов с хешами
-<FilesMatch "\.(html|htm)$">
-  <IfModule mod_headers.c>
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
-  </IfModule>
-</FilesMatch>
-
-# JS файлы с хешами не кешируем (Vite генерирует уникальные имена)
-<FilesMatch "index-.*\.js$">
-  <IfModule mod_headers.c>
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
-  </IfModule>
-</FilesMatch>
+# Запрет кеширования для ВСЕХ файлов
+<IfModule mod_headers.c>
+  # Отключаем ETag (может вызывать проблемы с кешированием)
+  Header unset ETag
+  FileETag None
+  
+  # Агрессивные заголовки против кеширования
+  Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
+  Header set Pragma "no-cache"
+  Header set Expires "0"
+  
+  # Дополнительные заголовки для обхода CDN/прокси
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
 
 # MIME типы
 <IfModule mod_mime.c>
