@@ -68,8 +68,7 @@ function CitySelection({ onSelect }) {
   return (
     <div className="city-selection">
       <div className="city-selection-header">
-        <h1>🏙️ Selecciona la ciudad</h1>
-        <p>¿Dónde buscas anuncios?</p>
+        <h1>Cuba Clasificados - plataforma gratuita única para Cuba</h1>
       </div>
       
       <div className="city-list">
