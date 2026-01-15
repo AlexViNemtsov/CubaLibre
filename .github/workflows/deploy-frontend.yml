@@ -58,7 +58,7 @@ jobs:
           password: ${{ secrets.REG_RU_FTP_PASSWORD }}
           local-dir: ./frontend/dist/
           server-dir: /www/cuba-clasificados.online/www/cuba-clasificados.online/
-          dangerous-clean-slate: true
+          dangerous-clean-slate: false
           dry-run: false
           log-level: verbose
           exclude: |
