@@ -47,8 +47,7 @@ jobs:
           username: ${{ secrets.REG_RU_FTP_USER }}
           password: ${{ secrets.REG_RU_FTP_PASSWORD }}
           local-dir: ./frontend/dist/
-          server-dir: /www/cuba-clasificados.online/
-          exclude: |
+   server-dir: /www/cuba-clasificados.online/www/cuba-clasificados.online/          exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
