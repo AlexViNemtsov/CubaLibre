@@ -16,7 +16,7 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
-// Компонент выбора города - Cuba Clasificados
+// Компонент выбора города
 function CitySelection({ onSelect }) {
   const [cities, setCities] = useState([]);
   const [neighborhoods, setNeighborhoods] = useState({});
