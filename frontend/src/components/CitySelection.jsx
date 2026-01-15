@@ -16,7 +16,7 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
-// Компонент выбора города
+// Компонент выбора города - передеплой после отключения кеширования
 function CitySelection({ onSelect }) {
   const [cities, setCities] = useState([]);
   const [neighborhoods, setNeighborhoods] = useState({});
