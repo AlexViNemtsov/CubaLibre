@@ -36,8 +36,20 @@ jobs:
           if [ -f .htaccess ]; then
             cp .htaccess frontend/dist/.htaccess
             echo "✅ .htaccess copied"
+            echo "📄 .htaccess content:"
+            head -20 frontend/dist/.htaccess
           else
             echo "⚠️ .htaccess not found, skipping"
+          fi
+      
+      - name: Verify build contains new text
+        run: |
+          echo "🔍 Checking for 'plataforma gratuita' in build:"
+          if grep -r "plataforma gratuita" frontend/dist/ 2>/dev/null; then
+            echo "✅ New text found in build!"
+          else
+            echo "❌ New text NOT found in build!"
+            exit 1
           fi
 
       - name: Deploy to reg.ru via FTP
@@ -47,8 +59,18 @@ jobs:
           username: ${{ secrets.REG_RU_FTP_USER }}
           password: ${{ secrets.REG_RU_FTP_PASSWORD }}
           local-dir: ./frontend/dist/
-          server-dir: /www/cuba-clasificados.online/
+          server-dir: /www/cuba-clasificados.online/www/cuba-clasificados.online/
+          dangerous-clean-slate: true
+          dry-run: false
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
+      
+      - name: Verify deployment
+        run: |
+          echo "✅ Deployment completed"
+          echo "Files in dist:"
+          ls -la frontend/dist/
+          echo "Assets:"
+          ls -la frontend/dist/assets/ || echo "No assets folder"
