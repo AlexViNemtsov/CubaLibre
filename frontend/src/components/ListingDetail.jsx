@@ -223,8 +223,10 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
 
   // Функция для получения ссылки на объявление
   const getListingUrl = () => {
-    const baseUrl = window.location.origin + window.location.pathname;
-    return `${baseUrl}?listing=${listing.id}`;
+    // Используем Web App URL из переменных окружения или текущий URL
+    const webAppUrl = import.meta.env.VITE_WEB_APP_URL || 
+                      (typeof window !== 'undefined' ? window.location.origin : 'https://cuba-clasificados.online');
+    return `${webAppUrl}?listing=${listing.id}`;
   };
 
   // Функция для копирования ссылки в буфер обмена
@@ -662,18 +664,35 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
               </button>
             </div>
           )}
-          <button 
-            className="btn btn-primary" 
-            onClick={handleShare}
-            style={{ 
-              width: '100%',
-              marginBottom: '10px',
-              backgroundColor: '#667eea',
-              borderColor: '#667eea'
-            }}
-          >
-            📤 Compartir anuncio
-          </button>
+          
+          {/* Кнопка "Поделиться" - всегда видна */}
+          <div style={{ 
+            width: '100%', 
+            marginTop: isOwner || isAdmin ? '15px' : '0',
+            marginBottom: '15px',
+            paddingTop: (isOwner || isAdmin) ? '15px' : '0',
+            borderTop: (isOwner || isAdmin) ? '1px solid rgba(0,0,0,0.1)' : 'none'
+          }}>
+            <button 
+              className="btn btn-primary" 
+              onClick={handleShare}
+              style={{ 
+                width: '100%',
+                backgroundColor: '#667eea',
+                borderColor: '#667eea',
+                color: 'white',
+                padding: '12px 20px',
+                fontSize: '16px',
+                fontWeight: '600',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              📤 Compartir anuncio
+            </button>
+          </div>
+          
           {(listing.contact_telegram || listing.username) && (
             <button className="btn btn-primary" onClick={handleTelegramClick}>
               ✉️ Escribir en Telegram
