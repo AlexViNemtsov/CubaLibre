@@ -26,34 +26,6 @@ function App() {
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
   const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    try {
-      // Инициализация Telegram Web App
-      initTelegramWebApp();
-      
-      // Получаем initData для аутентификации
-      const data = getInitData();
-      setInitData(data);
-      
-      // Настройка темы
-      if (isDarkMode()) {
-        document.body.classList.add('dark');
-      }
-      
-      // Проверяем URL параметры для deep linking
-      const urlParams = new URLSearchParams(window.location.search);
-      const listingId = urlParams.get('listing');
-      
-      if (listingId) {
-        // Загружаем объявление по ID и открываем его
-        loadListingById(listingId);
-      }
-    } catch (error) {
-      console.error('Error initializing app:', error);
-      // Продолжаем работу даже если Telegram Web App не доступен
-    }
-  }, []);
-  
   // Функция для загрузки объявления по ID
   const loadListingById = async (listingId) => {
     try {
