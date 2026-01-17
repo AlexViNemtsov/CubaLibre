@@ -122,6 +122,10 @@ function MyListings({ onListingClick, initData, onBack, refreshKey = 0 }) {
           if (response.status === 401 || response.status === 403) {
             console.log('User not authenticated or no access, showing empty list');
             allListings = [];
+          } else if (response.status === 500) {
+            // Если 500 ошибка - возможно просто нет объявлений, показываем пустой список
+            console.warn('Server error 500, showing empty list instead of error');
+            allListings = [];
           } else {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(`Failed to load listings: ${response.status} ${response.statusText}. ${errorData.message || ''}`);

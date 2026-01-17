@@ -769,15 +769,45 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
 
         <div className="form-group">
           <label>Fotografías * (mínimo 1, hasta 5)</label>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handlePhotoChange}
-            className="file-input"
-            required
-          />
-          <small className="form-hint">
+          <div style={{ position: 'relative' }}>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoChange}
+              className="file-input"
+              required
+              id="photo-upload-input"
+              style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+            />
+            <label 
+              htmlFor="photo-upload-input"
+              style={{
+                display: 'inline-block',
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '14px',
+                textAlign: 'center',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+              }}
+            >
+              📷 Seleccionar fotografías
+            </label>
+          </div>
+          <small className="form-hint" style={{ display: 'block', marginTop: '8px' }}>
             {photos.length + (existingPhotos.length - photosToDelete.length)} / 5 fotografías
             {(photos.length + (existingPhotos.length - photosToDelete.length)) === 0 && ' - Se requiere al menos 1 fotografía'}
           </small>
