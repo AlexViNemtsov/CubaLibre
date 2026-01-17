@@ -640,6 +640,27 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     
+    // Если таблица не существует - это критическая ошибка инициализации БД
+    if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
+      console.error('❌ CRITICAL: Database table does not exist. Attempting to initialize...');
+      // Пытаемся инициализировать БД
+      const { initDatabase } = require('../database/init');
+      try {
+        await initDatabase();
+        console.log('✅ Database initialized. Please try again.');
+        return res.status(500).json({ 
+          error: 'La base de datos no estaba inicializada. Por favor, intenta de nuevo.',
+          details: process.env.NODE_ENV === 'development' ? 'Database was just initialized' : undefined
+        });
+      } catch (initError) {
+        console.error('❌ Failed to initialize database:', initError.message);
+        return res.status(500).json({ 
+          error: 'Error crítico: la base de datos no está configurada correctamente. Por favor, contacta al administrador.',
+          details: process.env.NODE_ENV === 'development' ? initError.message : undefined
+        });
+      }
+    }
+    
     // Если ошибка базы данных
     if (error.code && error.code.startsWith('23')) {
       return res.status(400).json({ error: 'Error de validación: ' + error.message });

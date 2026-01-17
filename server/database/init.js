@@ -68,11 +68,65 @@ pool.query('SELECT NOW()', (err, res) => {
   }
 });
 
+// Функция для правильного разделения SQL-запросов
+function splitSQLQueries(sql) {
+  const queries = [];
+  let currentQuery = '';
+  let inDollarQuote = false;
+  let dollarTag = '';
+  let i = 0;
+  
+  while (i < sql.length) {
+    const char = sql[i];
+    const nextChar = sql[i + 1];
+    
+    // Проверяем начало блока $$ (dollar quoting)
+    if (char === '$' && nextChar === '$') {
+      // Находим тег (например, $$ или $tag$)
+      let tagEnd = i + 2;
+      while (tagEnd < sql.length && sql[tagEnd] !== '$') {
+        tagEnd++;
+      }
+      dollarTag = sql.substring(i, tagEnd + 1);
+      
+      if (!inDollarQuote) {
+        inDollarQuote = true;
+      } else if (sql.substring(i, i + dollarTag.length) === dollarTag) {
+        inDollarQuote = false;
+        currentQuery += dollarTag;
+        i += dollarTag.length - 1;
+        dollarTag = '';
+      } else {
+        currentQuery += char;
+      }
+    } else if (char === ';' && !inDollarQuote) {
+      // Конец запроса
+      const trimmed = currentQuery.trim();
+      if (trimmed && !trimmed.startsWith('--')) {
+        queries.push(trimmed);
+      }
+      currentQuery = '';
+    } else {
+      currentQuery += char;
+    }
+    
+    i++;
+  }
+  
+  // Добавляем последний запрос, если он есть
+  const trimmed = currentQuery.trim();
+  if (trimmed && !trimmed.startsWith('--')) {
+    queries.push(trimmed);
+  }
+  
+  return queries;
+}
+
 async function initDatabase() {
   try {
     console.log('🔄 Initializing database schema...');
     
-    // Сначала проверяем, существует ли таблица listings
+    // Проверяем, существует ли таблица listings
     const checkTable = await pool.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -81,71 +135,45 @@ async function initDatabase() {
       );
     `);
     
-    const tableExists = checkTable.rows[0].exists;
-    console.log('📊 Table "listings" exists:', tableExists);
-    
-    if (tableExists) {
-      console.log('✅ Database tables already exist, skipping schema creation');
+    if (checkTable.rows[0].exists) {
+      console.log('✅ Table listings already exists, skipping schema creation');
     } else {
-      console.log('📝 Creating database schema...');
+      console.log('📋 Creating database schema...');
       const schemaPath = path.join(__dirname, 'schema.sql');
-      
-      if (!fs.existsSync(schemaPath)) {
-        console.error('❌ Schema file not found:', schemaPath);
-        throw new Error('Schema file not found');
-      }
-      
       const schema = fs.readFileSync(schemaPath, 'utf8');
-      console.log('📄 Schema file loaded, size:', schema.length, 'bytes');
       
       // Удаляем CREATE DATABASE из схемы для подключения к существующей БД
-      const schemaWithoutDB = schema.replace(/CREATE DATABASE.*?;/i, '');
+      const schemaWithoutDB = schema.replace(/CREATE DATABASE.*?;/i, '').trim();
       
-      // Разделяем на отдельные запросы
-      const queries = schemaWithoutDB
-        .split(';')
-        .map(q => q.trim())
-        .filter(q => q.length > 0 && !q.startsWith('--') && !q.toLowerCase().startsWith('use '));
+      // Разделяем на отдельные запросы с учетом блоков $$
+      const queries = splitSQLQueries(schemaWithoutDB);
       
-      console.log('📝 Found', queries.length, 'queries to execute');
+      console.log(`📝 Found ${queries.length} SQL statements to execute`);
       
       for (let i = 0; i < queries.length; i++) {
-        const query = queries[i];
-        if (query.trim()) {
-          try {
-            await pool.query(query);
-            console.log(`✅ [${i + 1}/${queries.length}] Executed query successfully`);
-          } catch (err) {
-            // Игнорируем ошибки если таблицы уже существуют
-            if (err.message.includes('already exists') || err.message.includes('duplicate')) {
-              console.log(`ℹ️  [${i + 1}/${queries.length}] Already exists, skipping`);
-            } else {
-              console.error(`❌ [${i + 1}/${queries.length}] Error executing query:`, err.message);
-              console.error('Query:', query.substring(0, 100) + '...');
-              // Не прерываем выполнение, продолжаем создавать остальные таблицы
-            }
+        const query = queries[i].trim();
+        if (!query || query.startsWith('--')) continue;
+        
+        try {
+          await pool.query(query);
+          console.log(`✅ Executed statement ${i + 1}/${queries.length}`);
+        } catch (err) {
+          // Игнорируем ошибки если объекты уже существуют
+          if (err.message.includes('already exists') || 
+              err.message.includes('duplicate') ||
+              err.message.includes('already exists')) {
+            console.log(`⚠️  Statement ${i + 1}: Object already exists, skipping`);
+          } else {
+            console.error(`❌ Error executing statement ${i + 1}:`, err.message);
+            console.error(`Query: ${query.substring(0, 200)}...`);
+            // Не прерываем выполнение, продолжаем с другими запросами
           }
         }
-      }
-      
-      // Проверяем что таблица создана
-      const verifyTable = await pool.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = 'listings'
-        );
-      `);
-      
-      if (verifyTable.rows[0].exists) {
-        console.log('✅ Database schema created successfully - listings table exists');
-      } else {
-        console.error('❌ WARNING: listings table was not created!');
-        throw new Error('Failed to create listings table');
       }
     }
     
     // Выполняем миграции
+    console.log('🔄 Running migrations...');
     const migrationFiles = [
       'migration_add_apartment_fields.sql',
       'migration_add_views.sql'
@@ -160,16 +188,36 @@ async function initDatabase() {
           console.log(`✅ Migration ${migrationFile} executed successfully`);
         } catch (err) {
           // Игнорируем ошибки если миграция уже выполнена
-          if (!err.message.includes('already exists') && !err.message.includes('duplicate') && !err.message.includes('already exists')) {
-            console.warn(`Warning executing migration ${migrationFile}:`, err.message);
+          if (err.message.includes('already exists') || 
+              err.message.includes('duplicate') ||
+              err.message.includes('does not exist') && err.message.includes('column')) {
+            console.log(`⚠️  Migration ${migrationFile}: Already applied or column exists`);
+          } else {
+            console.warn(`⚠️  Warning executing migration ${migrationFile}:`, err.message);
           }
         }
+      } else {
+        console.log(`⚠️  Migration file ${migrationFile} not found, skipping`);
       }
     }
     
-    console.log('✅ Database schema initialized successfully');
+    // Финальная проверка: убеждаемся, что таблица listings существует
+    const finalCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'listings'
+      );
+    `);
+    
+    if (finalCheck.rows[0].exists) {
+      console.log('✅ Database schema initialized successfully');
+    } else {
+      throw new Error('Table listings was not created after initialization');
+    }
   } catch (error) {
     console.error('❌ Error initializing database:', error.message);
+    console.error('Stack:', error.stack);
     // Не прерываем выполнение, если БД уже инициализирована
     if (!error.message.includes('already exists')) {
       throw error;
