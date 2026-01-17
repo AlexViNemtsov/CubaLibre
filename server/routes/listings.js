@@ -59,17 +59,23 @@ const handleMulterError = (err, req, res, next) => {
 async function getOrCreateUser(telegramId, username, firstName, lastName) {
   let client;
   try {
+    // Убеждаемся, что telegramId - это число (BIGINT в БД)
+    const telegramIdNum = typeof telegramId === 'string' ? parseInt(telegramId, 10) : telegramId;
+    
     client = await pool.connect();
     let result = await client.query(
       'SELECT id FROM users WHERE telegram_id = $1',
-      [telegramId]
+      [telegramIdNum]
     );
     
     if (result.rows.length === 0) {
       result = await client.query(
         'INSERT INTO users (telegram_id, username, first_name, last_name) VALUES ($1, $2, $3, $4) RETURNING id',
-        [telegramId, username, firstName, lastName]
+        [telegramIdNum, username, firstName, lastName]
       );
+      console.log('✅ Created new user:', { telegram_id: telegramIdNum, username });
+    } else {
+      console.log('✅ Found existing user:', { telegram_id: telegramIdNum, user_id: result.rows[0].id });
     }
     
     return result.rows[0].id;
