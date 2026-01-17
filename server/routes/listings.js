@@ -643,10 +643,18 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
     // Если таблица не существует - это критическая ошибка инициализации БД
     if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
       console.error('❌ CRITICAL: Database table does not exist. Attempting to force create tables...');
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        table: error.message.match(/relation "(\w+)" does not exist/)?.[1]
+      });
+      
       // Пытаемся принудительно создать таблицы
       const { forceCreateTables } = require('../database/init');
       try {
+        console.log('🔄 Starting force table creation...');
         await forceCreateTables();
+        console.log('✅ Force table creation completed');
         
         // Проверяем, что таблица теперь существует
         const verifyCheck = await pool.query(`
@@ -658,7 +666,7 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
         `);
         
         if (verifyCheck.rows[0].exists) {
-          console.log('✅ Database tables created successfully. Retrying operation...');
+          console.log('✅ Database tables verified. Tables exist now.');
           // Возвращаем сообщение, что нужно повторить попытку
           return res.status(503).json({ 
             error: 'La base de datos se está inicializando. Por favor, intenta de nuevo en unos segundos.',
@@ -666,11 +674,38 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
             details: process.env.NODE_ENV === 'development' ? 'Database tables were just created' : undefined
           });
         } else {
+          console.error('❌ Tables still do not exist after force creation');
           throw new Error('Tables were not created after force creation');
         }
       } catch (initError) {
         console.error('❌ Failed to force create database tables:', initError.message);
+        console.error('Init error code:', initError.code);
         console.error('Init error stack:', initError.stack);
+        
+        // Пробуем еще раз с упрощенным методом
+        try {
+          const { createTablesDirectly } = require('../database/init');
+          console.log('🔄 Trying createTablesDirectly as last resort...');
+          await createTablesDirectly();
+          
+          const finalCheck = await pool.query(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables 
+              WHERE table_schema = 'public' 
+              AND table_name = 'listings'
+            );
+          `);
+          
+          if (finalCheck.rows[0].exists) {
+            return res.status(503).json({ 
+              error: 'La base de datos se está inicializando. Por favor, intenta de nuevo en unos segundos.',
+              retry: true
+            });
+          }
+        } catch (lastError) {
+          console.error('❌ Last resort table creation also failed:', lastError.message);
+        }
+        
         return res.status(500).json({ 
           error: 'Error crítico: la base de datos no está configurada correctamente. Por favor, contacta al administrador.',
           details: process.env.NODE_ENV === 'development' ? initError.message : undefined
