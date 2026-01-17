@@ -45,7 +45,7 @@ cd ..
 
 4. **Создайте .env файл на сервере:**
    ```env
-   TELEGRAM_BOT_TOKEN=8418701976:AAHReaTPs92VXuc8pofZSKo_Q_K-4GDCQhY
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
    DB_HOST=localhost
    DB_PORT=5432
    DB_NAME=cuba_clasificados
