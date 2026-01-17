@@ -668,14 +668,23 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
           {/* Кнопка "Поделиться" - всегда видна */}
           <div style={{ 
             width: '100%', 
-            marginTop: isOwner || isAdmin ? '15px' : '0',
+            marginTop: (isOwner || (isAdmin && !isOwner)) ? '15px' : '0',
             marginBottom: '15px',
-            paddingTop: (isOwner || isAdmin) ? '15px' : '0',
-            borderTop: (isOwner || isAdmin) ? '1px solid rgba(0,0,0,0.1)' : 'none'
+            paddingTop: (isOwner || (isAdmin && !isOwner)) ? '15px' : '0',
+            borderTop: (isOwner || (isAdmin && !isOwner)) ? '1px solid rgba(0,0,0,0.1)' : 'none'
           }}>
             <button 
               className="btn btn-primary" 
-              onClick={handleShare}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                  handleShare();
+                } catch (error) {
+                  console.error('Error sharing:', error);
+                  alert('Error al compartir. Por favor, intenta de nuevo.');
+                }
+              }}
               style={{ 
                 width: '100%',
                 backgroundColor: '#667eea',

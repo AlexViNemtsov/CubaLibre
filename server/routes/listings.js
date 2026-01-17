@@ -1155,7 +1155,28 @@ router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
     // Логирование для отладки
     const listingTelegramId = listing.rows[0].telegram_id;
     const userTelegramId = telegramUser.id;
-    const userIsAdmin = isAdmin(userTelegramId);
+    
+    // Проверяем, является ли пользователь администратором (с защитой от ошибок)
+    let userIsAdmin = false;
+    try {
+      if (typeof isAdmin === 'function') {
+        userIsAdmin = isAdmin(userTelegramId);
+      } else {
+        console.error('isAdmin is not a function! Type:', typeof isAdmin);
+        // Fallback: проверяем напрямую
+        const adminId = process.env.TELEGRAM_ADMIN_ID;
+        const adminIds = process.env.TELEGRAM_ADMIN_IDS;
+        if (adminId && String(userTelegramId) === String(adminId)) {
+          userIsAdmin = true;
+        } else if (adminIds) {
+          const adminIdList = adminIds.split(',').map(id => id.trim());
+          userIsAdmin = adminIdList.includes(String(userTelegramId));
+        }
+      }
+    } catch (adminError) {
+      console.error('Error checking admin status:', adminError);
+      userIsAdmin = false;
+    }
     
     console.log('Delete authorization check:', {
       listingId: id,
@@ -1165,6 +1186,7 @@ router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
       userTelegramIdType: typeof userTelegramId,
       isDevelopment: isDevelopment,
       userIsAdmin: userIsAdmin,
+      isAdminType: typeof isAdmin,
       match: String(listingTelegramId) === String(userTelegramId)
     });
     
