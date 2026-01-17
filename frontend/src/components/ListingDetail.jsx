@@ -226,44 +226,60 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
     // Используем Web App URL из переменных окружения или текущий URL
     const webAppUrl = import.meta.env.VITE_WEB_APP_URL || 
                       (typeof window !== 'undefined' ? window.location.origin : 'https://cuba-clasificados.online');
-    return `${webAppUrl}?listing=${listing.id}`;
+    const url = `${webAppUrl}?listing=${listing.id}`;
+    console.log('Generated listing URL:', url);
+    return url;
   };
 
   // Функция для копирования ссылки в буфер обмена
   const handleShare = async () => {
-    const url = getListingUrl();
-    
     try {
+      const url = getListingUrl();
+      console.log('Sharing listing URL:', url);
+      
       // Пробуем использовать Web Share API, если доступен
       if (navigator.share) {
-        await navigator.share({
-          title: listing.title,
-          text: listing.description.substring(0, 100) + '...',
-          url: url
-        });
-      } else {
-        // Если Web Share API не доступен, копируем в буфер обмена
+        try {
+          await navigator.share({
+            title: listing.title,
+            text: listing.description ? listing.description.substring(0, 100) + '...' : listing.title,
+            url: url
+          });
+          console.log('Shared via Web Share API');
+          return;
+        } catch (shareError) {
+          // Если пользователь отменил, не показываем ошибку
+          if (shareError.name === 'AbortError') {
+            console.log('Share cancelled by user');
+            return;
+          }
+          console.warn('Web Share API failed, falling back to clipboard:', shareError);
+        }
+      }
+      
+      // Если Web Share API не доступен или не сработал, копируем в буфер обмена
+      if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(url);
+        console.log('URL copied to clipboard');
         if (onSuccess) {
-          onSuccess('Ссылка скопирована в буфер обмена!');
+          onSuccess('¡Enlace copiado al portapapeles!');
         } else {
-          alert('Ссылка скопирована в буфер обмена!');
+          alert('¡Enlace copiado al portapapeles!');
+        }
+      } else {
+        // Fallback: показываем ссылку в prompt
+        const copied = prompt('Copia este enlace:', url);
+        if (copied) {
+          if (onSuccess) {
+            onSuccess('¡Enlace listo para compartir!');
+          }
         }
       }
     } catch (error) {
-      // Fallback: копируем в буфер обмена
-      try {
-        await navigator.clipboard.writeText(url);
-        if (onSuccess) {
-          onSuccess('Ссылка скопирована в буфер обмена!');
-        } else {
-          alert('Ссылка скопирована в буфер обмена!');
-        }
-      } catch (clipboardError) {
-        console.error('Error copying to clipboard:', clipboardError);
-        // Показываем ссылку в alert как последний вариант
-        prompt('Скопируйте ссылку:', url);
-      }
+      console.error('Error in handleShare:', error);
+      const url = getListingUrl();
+      // Последний fallback: показываем ссылку
+      prompt('Copia este enlace:', url);
     }
   };
 
@@ -665,42 +681,38 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
             </div>
           )}
           
-          {/* Кнопка "Поделиться" - всегда видна */}
-          <div style={{ 
-            width: '100%', 
-            marginTop: (isOwner || (isAdmin && !isOwner)) ? '15px' : '0',
-            marginBottom: '15px',
-            paddingTop: (isOwner || (isAdmin && !isOwner)) ? '15px' : '0',
-            borderTop: (isOwner || (isAdmin && !isOwner)) ? '1px solid rgba(0,0,0,0.1)' : 'none'
-          }}>
-            <button 
-              className="btn btn-primary" 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                try {
-                  handleShare();
-                } catch (error) {
-                  console.error('Error sharing:', error);
-                  alert('Error al compartir. Por favor, intenta de nuevo.');
-                }
-              }}
-              style={{ 
-                width: '100%',
-                backgroundColor: '#667eea',
-                borderColor: '#667eea',
-                color: 'white',
-                padding: '12px 20px',
-                fontSize: '16px',
-                fontWeight: '600',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer'
-              }}
-            >
-              📤 Compartir anuncio
-            </button>
-          </div>
+          {/* Кнопка "Поделиться" - всегда видна, в самом верху секции действий */}
+          <button 
+            className="btn btn-primary" 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Share button clicked');
+              try {
+                handleShare();
+              } catch (error) {
+                console.error('Error sharing:', error);
+                alert('Error al compartir. Por favor, intenta de nuevo.');
+              }
+            }}
+            style={{ 
+              width: '100%',
+              backgroundColor: '#667eea',
+              borderColor: '#667eea',
+              color: 'white',
+              padding: '12px 20px',
+              fontSize: '16px',
+              fontWeight: '600',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              marginBottom: '15px',
+              marginTop: (isOwner || (isAdmin && !isOwner)) ? '15px' : '0',
+              display: 'block'
+            }}
+          >
+            📤 Compartir anuncio
+          </button>
           
           {(listing.contact_telegram || listing.username) && (
             <button className="btn btn-primary" onClick={handleTelegramClick}>
