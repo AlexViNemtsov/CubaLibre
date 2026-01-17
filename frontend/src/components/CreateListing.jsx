@@ -138,17 +138,41 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
 
   const handlePhotoChange = (e) => {
     const newFiles = Array.from(e.target.files || []);
-    if (newFiles.length === 0) return;
-    
+    if (newFiles.length === 0) {
+      console.log('No files selected');
+      return;
+    }
+
+    console.log('Files selected:', newFiles.length, newFiles.map(f => f.name));
+
     // Используем функциональное обновление для получения актуального состояния
     setPhotos(prev => {
       // Вычисляем общее количество фотографий с учетом текущего состояния
-      const totalPhotos = prev.length + existingPhotos.length;
+      const currentExisting = existingPhotos.length - photosToDelete.length;
+      const totalPhotos = prev.length + currentExisting;
       const remainingSlots = Math.max(0, 5 - totalPhotos);
-      const filesToAdd = newFiles.slice(0, remainingSlots);
       
-      // Добавляем новые файлы к существующим
-      return [...prev, ...filesToAdd];
+      console.log('Photo state:', {
+        prev: prev.length,
+        existing: existingPhotos.length,
+        toDelete: photosToDelete.length,
+        currentExisting,
+        totalPhotos,
+        remainingSlots
+      });
+      
+      if (remainingSlots <= 0) {
+        console.warn('No remaining slots for photos');
+        return prev;
+      }
+      
+      const filesToAdd = newFiles.slice(0, remainingSlots);
+      console.log('Adding files:', filesToAdd.length);
+      
+      const newPhotos = [...prev, ...filesToAdd];
+      console.log('New photos array length:', newPhotos.length);
+      
+      return newPhotos;
     });
     
     // Сбрасываем значение input, чтобы можно было выбрать тот же файл снова
@@ -177,7 +201,20 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
       
       // Валидация: минимум 1 фото обязательно
       const totalPhotos = photos.length + (existingPhotos.length - photosToDelete.length);
+      console.log('Photo validation:', {
+        photos: photos.length,
+        existingPhotos: existingPhotos.length,
+        photosToDelete: photosToDelete.length,
+        totalPhotos
+      });
+      
       if (totalPhotos === 0) {
+        setError('Por favor, agrega al menos una fotografía');
+        setLoading(false);
+        return;
+      }
+      
+      if (photos.length === 0 && !isEditing) {
         setError('Por favor, agrega al menos una fotografía');
         setLoading(false);
         return;
@@ -744,6 +781,16 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
             {photos.length + (existingPhotos.length - photosToDelete.length)} / 5 fotografías
             {(photos.length + (existingPhotos.length - photosToDelete.length)) === 0 && ' - Se requiere al menos 1 fotografía'}
           </small>
+          {photos.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#28a745', fontWeight: '600' }}>
+              ✓ {photos.length} {photos.length === 1 ? 'fotografía nueva' : 'fotografías nuevas'} seleccionada{photos.length > 1 ? 's' : ''}
+            </div>
+          )}
+          {photos.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+              📷 {photos.length} {photos.length === 1 ? 'fotografía nueva' : 'fotografías nuevas'} seleccionada{photos.length > 1 ? 's' : ''}
+            </div>
+          )}
           {existingPhotos.length > 0 && (
             <div className="photo-preview">
               <p style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>Fotografías actuales:</p>

@@ -118,12 +118,18 @@ function MyListings({ onListingClick, initData, onBack, refreshKey = 0 }) {
         const response = await fetch(`${API_URL}/listings?${params}`, { headers });
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`Failed to load listings: ${response.status} ${response.statusText}. ${errorData.message || ''}`);
+          // Если 401 (не авторизован) или 403 (нет доступа) - это нормально для пустого ЛК
+          if (response.status === 401 || response.status === 403) {
+            console.log('User not authenticated or no access, showing empty list');
+            allListings = [];
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Failed to load listings: ${response.status} ${response.statusText}. ${errorData.message || ''}`);
+          }
+        } else {
+          const data = await response.json();
+          allListings = data.listings || [];
         }
-        
-        const data = await response.json();
-        allListings = data.listings || [];
       }
       
       // Сортируем по дате (новые сначала)
@@ -227,6 +233,28 @@ function MyListings({ onListingClick, initData, onBack, refreshKey = 0 }) {
           ))}
         </div>
       )}
+
+      {/* Footer с Privacy Policy внизу страницы */}
+      <footer style={{
+        padding: '16px',
+        textAlign: 'center',
+        fontSize: '12px',
+        color: 'rgba(255, 255, 255, 0.8)',
+        marginTop: '40px',
+        position: 'relative',
+        zIndex: 10
+      }}>
+        <a 
+          href="/privacy-policy.html" 
+          target="_blank"
+          style={{
+            color: 'rgba(255, 255, 255, 0.9)',
+            textDecoration: 'none'
+          }}
+        >
+          Política de Privacidad
+        </a>
+      </footer>
     </div>
   );
 }

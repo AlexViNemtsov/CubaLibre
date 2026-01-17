@@ -313,27 +313,6 @@ function App() {
         />
       )}
 
-      {/* Footer с Privacy Policy */}
-      <footer style={{
-        padding: '16px',
-        textAlign: 'center',
-        fontSize: '12px',
-        color: '#999',
-        borderTop: '1px solid rgba(0,0,0,0.05)',
-        marginTop: 'auto'
-      }}>
-        <a 
-          href="/privacy-policy.html" 
-          target="_blank"
-          style={{
-            color: '#667eea',
-            textDecoration: 'none'
-          }}
-        >
-          Política de Privacidad
-        </a>
-      </footer>
-
       {currentScreen === 'my-listings' && (
         <MyListings
           onListingClick={handleListingClick}
@@ -364,6 +343,31 @@ function App() {
           onSelect={handlePropertyTypeSelect}
           onClose={() => setShowPropertyTypeModal(false)}
         />
+      )}
+
+      {/* Footer с Privacy Policy - показываем только на определенных экранах */}
+      {currentScreen !== 'my-listings' && currentScreen !== 'create' && currentScreen !== 'edit' && currentScreen !== 'detail' && (
+        <footer style={{
+          padding: '16px',
+          textAlign: 'center',
+          fontSize: '12px',
+          color: '#999',
+          borderTop: '1px solid rgba(0,0,0,0.05)',
+          marginTop: 'auto',
+          position: 'relative',
+          zIndex: 10
+        }}>
+          <a 
+            href="/privacy-policy.html" 
+            target="_blank"
+            style={{
+              color: '#667eea',
+              textDecoration: 'none'
+            }}
+          >
+            Política de Privacidad
+          </a>
+        </footer>
       )}
     </div>
     </SubscriptionGate>

@@ -8,26 +8,42 @@ const REQUIRED_CHANNEL = '@CubaClasificados';
 function SubscriptionGate({ children }) {
   const [isSubscribed, setIsSubscribed] = useState(null); // null = проверка, true = подписан, false = не подписан
   const [isChecking, setIsChecking] = useState(true);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   useEffect(() => {
     checkSubscription();
   }, []);
 
-  const checkSubscription = async () => {
+  const checkSubscription = async (showLoading = false) => {
+    if (showLoading) {
+      setIsVerifying(true);
+      setErrorMessage(null);
+    }
+    
     try {
       const user = getUser();
+      console.log('🔍 Checking subscription, user:', user);
+      
       if (!user || !user.id) {
+        console.warn('⚠️  No user data available');
         // В режиме разработки разрешаем доступ
         if (import.meta.env.DEV) {
           console.warn('⚠️  Development mode: Allowing access without user check');
           setIsSubscribed(true);
           setIsChecking(false);
+          setIsVerifying(false);
           return;
         }
         setIsSubscribed(false);
         setIsChecking(false);
+        setIsVerifying(false);
+        setErrorMessage('No se pudo obtener la información del usuario');
         return;
       }
+
+      console.log('📡 Sending request to:', `${API_URL}/subscription/check`);
+      console.log('👤 User ID:', user.id);
 
       const response = await fetch(`${API_URL}/subscription/check`, {
         method: 'POST',
@@ -37,18 +53,41 @@ function SubscriptionGate({ children }) {
         body: JSON.stringify({ userId: user.id }),
       });
 
+      console.log('📥 Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ API Error:', errorData);
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
       const data = await response.json();
+      console.log('✅ Subscription check result:', data);
+      
       setIsSubscribed(data.subscribed || false);
+      
+      if (!data.subscribed && data.error) {
+        setErrorMessage(data.error);
+      } else {
+        setErrorMessage(null);
+      }
     } catch (error) {
-      console.error('Error checking subscription:', error);
-      // В режиме разработки разрешаем доступ при ошибке
-      if (import.meta.env.DEV) {
+      console.error('❌ Error checking subscription:', error);
+      console.error('Error details:', error.message, error.stack);
+      
+      // Если ошибка сети или API недоступен, разрешаем доступ (временно)
+      // Это позволит пользователям использовать приложение даже если проверка не работает
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        console.warn('⚠️  Network error, allowing access');
         setIsSubscribed(true);
+        setErrorMessage(null);
       } else {
         setIsSubscribed(false);
+        setErrorMessage(`Error al verificar: ${error.message}`);
       }
     } finally {
       setIsChecking(false);
+      setIsVerifying(false);
     }
   };
 
@@ -81,12 +120,36 @@ function SubscriptionGate({ children }) {
             Para usar esta aplicación, necesitas estar suscrito a nuestro canal:
           </p>
           <div className="channel-name">{REQUIRED_CHANNEL}</div>
-          <button className="btn-subscribe" onClick={handleSubscribe}>
+          <button 
+            className="btn-subscribe" 
+            onClick={handleSubscribe}
+            disabled={isVerifying}
+          >
             📢 Suscribirse al canal
           </button>
-          <button className="btn-check" onClick={checkSubscription}>
-            🔄 Ya me suscribí, verificar
+          <button 
+            className="btn-check" 
+            onClick={() => checkSubscription(true)}
+            disabled={isVerifying}
+            style={{ 
+              opacity: isVerifying ? 0.6 : 1,
+              cursor: isVerifying ? 'wait' : 'pointer'
+            }}
+          >
+            {isVerifying ? '⏳ Verificando...' : '🔄 Ya me suscribí, verificar'}
           </button>
+          {errorMessage && (
+            <p style={{ 
+              color: '#dc3545', 
+              fontSize: '13px', 
+              marginTop: '12px',
+              padding: '8px',
+              background: 'rgba(220, 53, 69, 0.1)',
+              borderRadius: '8px'
+            }}>
+              ⚠️ {errorMessage}
+            </p>
+          )}
           <p className="subscription-hint">
             Después de suscribirte, presiona el botón de verificación
           </p>
