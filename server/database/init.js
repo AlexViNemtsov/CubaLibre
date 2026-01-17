@@ -70,28 +70,78 @@ pool.query('SELECT NOW()', (err, res) => {
 
 async function initDatabase() {
   try {
-    const schemaPath = path.join(__dirname, 'schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
+    console.log('🔄 Initializing database schema...');
     
-    // Удаляем CREATE DATABASE из схемы для подключения к существующей БД
-    const schemaWithoutDB = schema.replace(/CREATE DATABASE.*?;/i, '');
+    // Сначала проверяем, существует ли таблица listings
+    const checkTable = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'listings'
+      );
+    `);
     
-    // Разделяем на отдельные запросы
-    const queries = schemaWithoutDB
-      .split(';')
-      .map(q => q.trim())
-      .filter(q => q.length > 0 && !q.startsWith('--'));
+    const tableExists = checkTable.rows[0].exists;
+    console.log('📊 Table "listings" exists:', tableExists);
     
-    for (const query of queries) {
-      if (query.trim()) {
-        try {
-          await pool.query(query);
-        } catch (err) {
-          // Игнорируем ошибки если таблицы уже существуют
-          if (!err.message.includes('already exists') && !err.message.includes('duplicate')) {
-            console.warn('Warning executing query:', err.message);
+    if (tableExists) {
+      console.log('✅ Database tables already exist, skipping schema creation');
+    } else {
+      console.log('📝 Creating database schema...');
+      const schemaPath = path.join(__dirname, 'schema.sql');
+      
+      if (!fs.existsSync(schemaPath)) {
+        console.error('❌ Schema file not found:', schemaPath);
+        throw new Error('Schema file not found');
+      }
+      
+      const schema = fs.readFileSync(schemaPath, 'utf8');
+      console.log('📄 Schema file loaded, size:', schema.length, 'bytes');
+      
+      // Удаляем CREATE DATABASE из схемы для подключения к существующей БД
+      const schemaWithoutDB = schema.replace(/CREATE DATABASE.*?;/i, '');
+      
+      // Разделяем на отдельные запросы
+      const queries = schemaWithoutDB
+        .split(';')
+        .map(q => q.trim())
+        .filter(q => q.length > 0 && !q.startsWith('--') && !q.toLowerCase().startsWith('use '));
+      
+      console.log('📝 Found', queries.length, 'queries to execute');
+      
+      for (let i = 0; i < queries.length; i++) {
+        const query = queries[i];
+        if (query.trim()) {
+          try {
+            await pool.query(query);
+            console.log(`✅ [${i + 1}/${queries.length}] Executed query successfully`);
+          } catch (err) {
+            // Игнорируем ошибки если таблицы уже существуют
+            if (err.message.includes('already exists') || err.message.includes('duplicate')) {
+              console.log(`ℹ️  [${i + 1}/${queries.length}] Already exists, skipping`);
+            } else {
+              console.error(`❌ [${i + 1}/${queries.length}] Error executing query:`, err.message);
+              console.error('Query:', query.substring(0, 100) + '...');
+              // Не прерываем выполнение, продолжаем создавать остальные таблицы
+            }
           }
         }
+      }
+      
+      // Проверяем что таблица создана
+      const verifyTable = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'listings'
+        );
+      `);
+      
+      if (verifyTable.rows[0].exists) {
+        console.log('✅ Database schema created successfully - listings table exists');
+      } else {
+        console.error('❌ WARNING: listings table was not created!');
+        throw new Error('Failed to create listings table');
       }
     }
     
