@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const listingsRouter = require('./routes/listings');
 const citiesRouter = require('./routes/cities');
+const subscriptionRouter = require('./routes/subscription');
 const { initDatabase } = require('./database/init');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // API Routes
 app.use('/api/listings', listingsRouter);
 app.use('/api/cities', citiesRouter);
+app.use('/api/subscription', subscriptionRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

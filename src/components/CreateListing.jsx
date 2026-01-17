@@ -56,7 +56,7 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cities, setCities] = useState([]);
-  const [selectedCity, setSelectedCity] = useState(city || 'la-habana');
+  const [selectedCity, setSelectedCity] = useState(city && city !== 'all' ? city : 'la-habana');
 
   // Загружаем список городов
   useEffect(() => {
@@ -68,8 +68,12 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
       .then(data => {
         setCities(data.cities || []);
         // Если передан city из пропсов, используем его
+        // Для недвижимости не используем 'all'
         if (city && city !== 'all') {
           setSelectedCity(city);
+        } else if (category === 'rent') {
+          // Для недвижимости устанавливаем дефолтный город если не передан
+          setSelectedCity('la-habana');
         }
       })
       .catch(err => {
@@ -81,6 +85,25 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
         ]);
       });
   }, [city]);
+
+  // Автоматически устанавливаем scope на основе выбранного города
+  useEffect(() => {
+    if (selectedCity === 'all') {
+      // Если выбран "Toda Cuba", устанавливаем scope в COUNTRY (только для не-rent)
+      if (category !== 'rent') {
+        setFormData(prev => ({ ...prev, scope: 'COUNTRY' }));
+      }
+    } else {
+      // Если выбран конкретный город
+      if (category === 'rent') {
+        // Для недвижимости по умолчанию NEIGHBORHOOD
+        setFormData(prev => ({ ...prev, scope: 'NEIGHBORHOOD' }));
+      } else {
+        // Для других категорий по умолчанию CITY
+        setFormData(prev => ({ ...prev, scope: 'CITY' }));
+      }
+    }
+  }, [selectedCity, category]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -112,8 +135,18 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
 
       submitData.append('category', category);
       // Используем выбранный город из формы
-      const cityToSubmit = selectedCity === 'all' ? 'Habana' : selectedCity;
-      submitData.append('city', cityToSubmit);
+      // Для недвижимости город обязателен и не может быть 'all'
+      if (category === 'rent') {
+        if (!selectedCity || selectedCity === 'all') {
+          setError('Por favor, selecciona una ciudad para anuncios de alquiler');
+          setLoading(false);
+          return;
+        }
+        submitData.append('city', selectedCity);
+      } else {
+        const cityToSubmit = selectedCity === 'all' ? 'Habana' : selectedCity;
+        submitData.append('city', cityToSubmit);
+      }
       if (neighborhood) {
         submitData.append('neighborhood', neighborhood);
       }
@@ -265,50 +298,31 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
         </div>
 
         <div className="form-group">
-          <label>Ciudad *</label>
+          <label>Ciudad {category === 'rent' ? '*' : ''}</label>
           <select
             name="city"
             value={selectedCity}
             onChange={(e) => setSelectedCity(e.target.value)}
             className="select"
-            required
+            required={category === 'rent'}
           >
-            {cities.map(cityOption => (
-              <option key={cityOption.id} value={cityOption.id}>
-                {cityOption.name}
-              </option>
-            ))}
+            {cities.map(cityOption => {
+              // Для недвижимости скрываем опцию "Toda Cuba"
+              if (category === 'rent' && cityOption.id === 'all') {
+                return null;
+              }
+              return (
+                <option key={cityOption.id} value={cityOption.id}>
+                  {cityOption.name}
+                </option>
+              );
+            })}
           </select>
+          {category === 'rent' && (
+            <small className="form-hint">Para anuncios de alquiler, la ciudad es obligatoria</small>
+          )}
         </div>
 
-        <div className="form-group">
-          <label>Alcance del anuncio *</label>
-          <div className="scope-buttons">
-            <button
-              type="button"
-              className={`scope-btn ${formData.scope === 'NEIGHBORHOOD' ? 'active' : ''} ${category === 'rent' ? '' : category === 'items' ? 'disabled' : ''}`}
-              onClick={() => setFormData({ ...formData, scope: 'NEIGHBORHOOD' })}
-              disabled={category === 'rent' ? false : category === 'items' ? false : false}
-            >
-              📍 Barrio
-            </button>
-            <button
-              type="button"
-              className={`scope-btn ${formData.scope === 'CITY' ? 'active' : ''}`}
-              onClick={() => setFormData({ ...formData, scope: 'CITY' })}
-            >
-              🏙 Ciudad
-            </button>
-            <button
-              type="button"
-              className={`scope-btn ${formData.scope === 'COUNTRY' ? 'active' : ''} ${category === 'rent' ? 'disabled' : ''}`}
-              onClick={() => setFormData({ ...formData, scope: 'COUNTRY' })}
-              disabled={category === 'rent'}
-            >
-              🇨🇺 Toda Cuba
-            </button>
-          </div>
-        </div>
 
         {category === 'rent' && (
           <>

@@ -1,0 +1,17 @@
+{
+  "name": "Cuba Clasificados",
+  "short_name": "Cuba Clasif",
+  "description": "Tablón de anuncios local para Cuba. Alquiler, artículos personales y servicios.",
+  "icon": "/images/icon-512.png",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#667eea",
+  "background_color": "#ffffff",
+  "orientation": "portrait",
+  "published": false,
+  "screenshots": [
+    "/images/screenshot1.png",
+    "/images/screenshot2.png",
+    "/images/screenshot3.png"
+  ]
+}

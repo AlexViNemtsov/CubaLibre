@@ -1,0 +1,31 @@
+═══════════════════════════════════════════════════════════
+  📝 .env ФАЙЛ ДЛЯ СЕРВЕРА (cuba-clasificados.online)
+═══════════════════════════════════════════════════════════
+
+Скопируйте это содержимое в файл .env на сервере:
+
+───────────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN=8418701976:AAHReaTPs92VXuc8pofZSKo_Q_K-4GDCQhY
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=cuba_clasificados
+DB_USER=ваш_пользователь_бд
+DB_PASSWORD=ваш_пароль_бд
+PORT=3000
+NODE_ENV=production
+FRONTEND_URL=https://cuba-clasificados.online
+WEB_APP_URL=https://cuba-clasificados.online
+UPLOAD_DIR=./uploads
+───────────────────────────────────────────────────────────
+
+⚠️ ВАЖНО: Замените:
+- ваш_пользователь_бд → реальный пользователь БД
+- ваш_пароль_бд → реальный пароль БД
+
+✅ Домен уже указан: cuba-clasificados.online
+
+═══════════════════════════════════════════════════════════
+
+
+
+

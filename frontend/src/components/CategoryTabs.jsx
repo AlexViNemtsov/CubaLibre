@@ -2,7 +2,7 @@ import './CategoryTabs.css';
 
 function CategoryTabs({ selected, onSelect }) {
   const categories = [
-    { id: 'rent', name: 'Alquiler', icon: '🏠' },
+    { id: 'rent', name: 'Inmuebles', icon: '🏠' },
     { id: 'items', name: 'Artículos', icon: '👕' },
     { id: 'services', name: 'Servicios', icon: '🛠' }
   ];
@@ -13,6 +13,7 @@ function CategoryTabs({ selected, onSelect }) {
         <button
           key={category.id}
           className={`category-tab ${selected === category.id ? 'active' : ''}`}
+          data-category={category.id}
           onClick={() => onSelect(category.id)}
         >
           <span className="category-icon">{category.icon}</span>

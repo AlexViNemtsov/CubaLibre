@@ -6,7 +6,10 @@ function ListingCard({ listing, onClick }) {
       return 'Negociable';
     }
     if (listing.price) {
-      return `${listing.price} ${listing.currency || 'CUP'}`;
+      const currency = listing.currency || 'CUP';
+      const currencySymbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : 'CUP';
+      const period = listing.rent_period === 'monthly' ? 'в месяц' : listing.rent_period === 'daily' ? 'в день' : '';
+      return `${listing.price} ${currencySymbol}${period ? ' ' + period : ''}`;
     }
     return 'Precio no especificado';
   };
@@ -25,6 +28,17 @@ function ListingCard({ listing, onClick }) {
   };
 
   const getLocation = () => {
+    // Для недвижимости всегда показываем город
+    if (listing.category === 'rent') {
+      if (listing.scope === 'NEIGHBORHOOD' && listing.neighborhood) {
+        return listing.city || 'Toda Cuba';
+      }
+      if (listing.scope === 'CITY' && listing.city) {
+        return listing.city;
+      }
+      return listing.city || 'Toda Cuba';
+    }
+    // Для других категорий
     if (listing.scope === 'NEIGHBORHOOD' && listing.neighborhood) {
       return listing.neighborhood;
     }
@@ -34,11 +48,34 @@ function ListingCard({ listing, onClick }) {
     return 'Toda Cuba';
   };
 
-  const getRoomsInfo = () => {
-    if (listing.category === 'rent' && listing.rooms) {
-      return `${listing.rooms} hab.`;
+  const getPropertyInfo = () => {
+    if (listing.category !== 'rent') {
+      return null;
     }
-    return null;
+
+    const parts = [];
+    
+    // Количество комнат и тип
+    if (listing.rooms) {
+      const propertyType = listing.rent_type === 'apartment' ? 'квартира' : 
+                          listing.rent_type === 'house' ? 'дом' : 
+                          listing.rent_type === 'room' ? 'комната' : 'квартира';
+      parts.push(`${listing.rooms}. ${propertyType}`);
+    }
+    
+    // Площадь
+    if (listing.total_area) {
+      parts.push(`${listing.total_area} м²`);
+    }
+    
+    // Этаж
+    if (listing.floor && listing.floor_from) {
+      parts.push(`${listing.floor}/${listing.floor_from} эт.`);
+    } else if (listing.floor) {
+      parts.push(`${listing.floor} эт.`);
+    }
+    
+    return parts.length > 0 ? parts.join(', ') : null;
   };
 
   return (
@@ -56,11 +93,11 @@ function ListingCard({ listing, onClick }) {
         )}
       </div>
       <div className="listing-content">
-        <div className="listing-location">{getLocation()}</div>
-        {getRoomsInfo() && (
-          <div className="listing-rooms">{getRoomsInfo()}</div>
+        {getPropertyInfo() && (
+          <div className="listing-property-info">{getPropertyInfo()}</div>
         )}
         <div className="listing-price">{formatPrice()}</div>
+        <div className="listing-location">{getLocation()}</div>
       </div>
     </div>
   );

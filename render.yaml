@@ -27,3 +27,5 @@ services:
         value: https://cuba-clasificados.online
       - key: UPLOAD_DIR
         value: ./uploads
+      - key: REQUIRED_CHANNEL
+        value: @CubaClasificados

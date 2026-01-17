@@ -17,46 +17,55 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
-function CreateListing({ category, city, neighborhood, onBack, onCreated, initData }) {
+function CreateListing({ category, city, neighborhood, onBack, onCreated, initData, editingListing, propertyTransactionType = 'rent' }) {
+  const isEditing = !!editingListing;
+  
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    price: '',
-    currency: 'CUP',
-    is_negotiable: false,
-    scope: category === 'rent' ? 'NEIGHBORHOOD' : category === 'items' ? 'COUNTRY' : 'CITY',
+    title: editingListing?.title || '',
+    description: editingListing?.description || '',
+    price: editingListing?.price || '',
+    currency: editingListing?.currency || 'CUP',
+    is_negotiable: editingListing?.is_negotiable || false,
+    scope: editingListing?.scope || (category === 'rent' ? 'NEIGHBORHOOD' : category === 'items' ? 'COUNTRY' : 'CITY'),
     // Аренда
-    rent_type: '',
-    rent_period: '',
-    available_from: '',
-    is_available_now: true,
-    landmark: '',
+    rent_type: editingListing?.rent_type || '',
+    rent_period: editingListing?.rent_period || '',
+    available_from: editingListing?.available_from || '',
+    is_available_now: editingListing?.is_available_now !== false,
+    landmark: editingListing?.landmark || '',
     // Дополнительные поля для квартир
-    rooms: '',
-    total_area: '',
-    living_area: '',
-    floor: '',
-    floor_from: '',
-    renovation: '',
-    furniture: '',
-    appliances: '',
-    internet: '',
+    rooms: editingListing?.rooms || '',
+    total_area: editingListing?.total_area || '',
+    living_area: editingListing?.living_area || '',
+    floor: editingListing?.floor || '',
+    floor_from: editingListing?.floor_from || '',
+    renovation: editingListing?.renovation || '',
+    furniture: editingListing?.furniture || '',
+    appliances: editingListing?.appliances || '',
+    internet: editingListing?.internet || '',
     // Личные вещи
-    item_subcategory: '',
-    item_condition: '',
-    item_brand: '',
-    delivery_type: '',
+    item_subcategory: editingListing?.item_subcategory || '',
+    item_condition: editingListing?.item_condition || '',
+    item_brand: editingListing?.item_brand || '',
+    delivery_type: editingListing?.delivery_type || '',
     // Услуги
-    service_subcategory: '',
-    service_format: '',
-    service_area: ''
+    service_subcategory: editingListing?.service_subcategory || '',
+    service_format: editingListing?.service_format || '',
+    service_area: editingListing?.service_area || ''
   });
 
   const [photos, setPhotos] = useState([]);
+  const [existingPhotos, setExistingPhotos] = useState(editingListing?.photos || []);
+  const [photosToDelete, setPhotosToDelete] = useState([]); // Массив URL фотографий для удаления
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [cities, setCities] = useState([]);
-  const [selectedCity, setSelectedCity] = useState(city || 'la-habana');
+  const [transactionType, setTransactionType] = useState(
+    propertyTransactionType || 'rent'
+  );
+  const [selectedCity, setSelectedCity] = useState(
+    editingListing?.city || (city && city !== 'all' ? city : 'la-habana')
+  );
 
   // Загружаем список городов
   useEffect(() => {
@@ -66,10 +75,23 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
         return res.json();
       })
       .then(data => {
-        setCities(data.cities || []);
+        const citiesList = data.cities || [];
+        // Сортируем: сначала Habana, потом Toda Cuba, затем остальные
+        const sortedCities = citiesList.sort((a, b) => {
+          if (a.id === 'la-habana') return -1;
+          if (b.id === 'la-habana') return 1;
+          if (a.id === 'all') return -1;
+          if (b.id === 'all') return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setCities(sortedCities);
         // Если передан city из пропсов, используем его
+        // Для недвижимости не используем 'all'
         if (city && city !== 'all') {
           setSelectedCity(city);
+        } else if (category === 'rent') {
+          // Для недвижимости устанавливаем дефолтный город если не передан
+          setSelectedCity('la-habana');
         }
       })
       .catch(err => {
@@ -82,6 +104,30 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
       });
   }, [city]);
 
+  // Автоматически устанавливаем scope на основе выбранного города
+  useEffect(() => {
+    // Для недвижимости всегда требуется город, scope не может быть COUNTRY
+    if (category === 'rent') {
+      if (selectedCity && selectedCity !== 'all') {
+        // Если выбран район, устанавливаем scope в NEIGHBORHOOD, иначе CITY
+        if (neighborhood) {
+          setFormData(prev => ({ ...prev, scope: 'NEIGHBORHOOD' }));
+        } else {
+          setFormData(prev => ({ ...prev, scope: 'CITY' }));
+        }
+      }
+    } else {
+      // Для других категорий
+      if (selectedCity === 'all') {
+        setFormData(prev => ({ ...prev, scope: 'COUNTRY' }));
+      } else if (neighborhood) {
+        setFormData(prev => ({ ...prev, scope: 'NEIGHBORHOOD' }));
+      } else {
+        setFormData(prev => ({ ...prev, scope: 'CITY' }));
+      }
+    }
+  }, [selectedCity, category, neighborhood]);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -91,8 +137,22 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
   };
 
   const handlePhotoChange = (e) => {
-    const files = Array.from(e.target.files).slice(0, 8);
-    setPhotos(files);
+    const newFiles = Array.from(e.target.files || []);
+    if (newFiles.length === 0) return;
+    
+    // Используем функциональное обновление для получения актуального состояния
+    setPhotos(prev => {
+      // Вычисляем общее количество фотографий с учетом текущего состояния
+      const totalPhotos = prev.length + existingPhotos.length;
+      const remainingSlots = Math.max(0, 5 - totalPhotos);
+      const filesToAdd = newFiles.slice(0, remainingSlots);
+      
+      // Добавляем новые файлы к существующим
+      return [...prev, ...filesToAdd];
+    });
+    
+    // Сбрасываем значение input, чтобы можно было выбрать тот же файл снова
+    e.target.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -101,19 +161,70 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
     setLoading(true);
 
     try {
+      // Валидация для аренды: rent_period обязателен
+      if (category === 'rent' && transactionType === 'rent' && !formData.rent_period) {
+        setError('Por favor, selecciona el período de alquiler');
+        setLoading(false);
+        return;
+      }
+
+      // Валидация длины заголовка (максимум 100 символов)
+      if (formData.title && formData.title.length > 100) {
+        setError('El título es demasiado largo. Máximo 100 caracteres');
+        setLoading(false);
+        return;
+      }
+      
+      // Валидация: минимум 1 фото обязательно
+      const totalPhotos = photos.length + (existingPhotos.length - photosToDelete.length);
+      if (totalPhotos === 0) {
+        setError('Por favor, agrega al menos una fotografía');
+        setLoading(false);
+        return;
+      }
+      
+      // Валидация цены: цена обязательна для всех категорий (либо указана цена, либо отмечено "Negociable")
+      if (!formData.price && !formData.is_negotiable) {
+        setError('Por favor, indica el precio o marca "Negociable"');
+        setLoading(false);
+        return;
+      }
+
       const submitData = new FormData();
       
-      // Основные поля
+      // Основные поля (кроме rent_period, который обработаем отдельно)
       Object.keys(formData).forEach(key => {
-        if (formData[key] !== '' && formData[key] !== null) {
+        // Для продажи не отправляем rent_period
+        if (key === 'rent_period' && category === 'rent' && transactionType === 'sale') {
+          // Не отправляем rent_period для продажи
+          return;
+        }
+        // Для аренды всегда отправляем rent_period (даже если пустой, но после валидации он не будет пустым)
+        if (key === 'rent_period' && category === 'rent' && transactionType === 'rent') {
+          // Обязательно отправляем rent_period для аренды
+          submitData.append(key, formData[key]);
+          return;
+        }
+        if (formData[key] !== '' && formData[key] !== null && formData[key] !== undefined) {
           submitData.append(key, formData[key]);
         }
       });
 
       submitData.append('category', category);
+      
       // Используем выбранный город из формы
-      const cityToSubmit = selectedCity === 'all' ? 'Habana' : selectedCity;
-      submitData.append('city', cityToSubmit);
+      // Для недвижимости город обязателен и не может быть 'all'
+      if (category === 'rent') {
+        if (!selectedCity || selectedCity === 'all') {
+          setError('Por favor, selecciona una ciudad para anuncios de inmuebles');
+          setLoading(false);
+          return;
+        }
+        submitData.append('city', selectedCity);
+      } else {
+        const cityToSubmit = selectedCity === 'all' ? 'Habana' : selectedCity;
+        submitData.append('city', cityToSubmit);
+      }
       if (neighborhood) {
         submitData.append('neighborhood', neighborhood);
       }
@@ -123,15 +234,29 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
         submitData.append('photos', photo);
       });
 
+      // Фотографии для удаления (при редактировании)
+      if (isEditing && photosToDelete.length > 0) {
+        // Отправляем массив URL фотографий для удаления
+        // Для FormData отправляем каждое значение отдельно с одинаковым ключом
+        photosToDelete.forEach(photoUrl => {
+          submitData.append('delete_photos', photoUrl);
+        });
+      }
+
       const headers = {};
       if (initData) {
         headers['X-Telegram-Init-Data'] = initData;
       }
 
       // Убеждаемся что URL правильный
-      const requestUrl = `${API_URL}/listings`;
+      const requestUrl = isEditing 
+        ? `${API_URL}/listings/${editingListing.id}`
+        : `${API_URL}/listings`;
+      const method = isEditing ? 'PUT' : 'POST';
+      
       console.log('API_URL:', API_URL);
       console.log('Sending request to:', requestUrl);
+      console.log('Method:', method);
       console.log('Environment:', {
         DEV: import.meta.env.DEV,
         PROD: import.meta.env.PROD,
@@ -139,7 +264,7 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
       });
       
       const response = await fetch(requestUrl, {
-        method: 'POST',
+        method,
         headers,
         body: submitData
       });
@@ -193,14 +318,36 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
     <div className="create-listing">
       <div className="create-header">
         <button className="btn-back" onClick={onBack}>←</button>
-        <h1>Publicar anuncio</h1>
+        <div className="logo-container">
+          <img src="/images/logo.png" alt="Cuba Clasificados" className="app-logo-small" onError={(e) => {
+            e.target.style.display = 'none';
+          }} />
+        </div>
+        <h1>{isEditing ? 'Editar anuncio' : 'Publicar anuncio'}</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="create-form">
         {error && <div className="error-message">{error}</div>}
 
+        {category === 'rent' && (
+          <div className="form-group">
+            <label>Tipo de transacción *</label>
+            <select
+              name="transaction_type"
+              value={transactionType}
+              onChange={(e) => setTransactionType(e.target.value)}
+              className="select"
+              required
+            >
+              <option value="rent">Alquilar</option>
+              <option value="sale">Vender</option>
+            </select>
+            <small className="form-hint">Selecciona si quieres alquilar o vender el inmueble</small>
+          </div>
+        )}
+
         <div className="form-group">
-          <label>Título *</label>
+          <label>Título * (máximo 100 caracteres)</label>
           <input
             type="text"
             name="title"
@@ -209,7 +356,11 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
             required
             className="input"
             placeholder="Descripción breve"
+            maxLength={100}
           />
+          <small className="form-hint">
+            {formData.title ? `${formData.title.length}/100 caracteres` : '0/100 caracteres'}
+          </small>
         </div>
 
         <div className="form-group">
@@ -227,7 +378,7 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
 
         <div className="form-row">
           <div className="form-group">
-            <label>Precio</label>
+            <label>Precio *</label>
             <input
               type="number"
               name="price"
@@ -235,7 +386,9 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
               onChange={handleChange}
               className="input"
               placeholder="0"
+              required={!formData.is_negotiable}
             />
+            <small className="form-hint">O marca "Precio negociable" si el precio es negociable</small>
           </div>
           <div className="form-group">
             <label>Moneda</label>
@@ -262,53 +415,35 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
             />
             Precio negociable
           </label>
+          <small className="form-hint">Marca esta opción si el precio es negociable</small>
         </div>
 
         <div className="form-group">
-          <label>Ciudad *</label>
+          <label>Ciudad {category === 'rent' ? '*' : ''}</label>
           <select
             name="city"
             value={selectedCity}
             onChange={(e) => setSelectedCity(e.target.value)}
             className="select"
-            required
+            required={category === 'rent'}
           >
-            {cities.map(cityOption => (
-              <option key={cityOption.id} value={cityOption.id}>
-                {cityOption.name}
-              </option>
-            ))}
+            {cities.map(cityOption => {
+              // Для недвижимости скрываем опцию "Toda Cuba"
+              if (category === 'rent' && cityOption.id === 'all') {
+                return null;
+              }
+              return (
+                <option key={cityOption.id} value={cityOption.id}>
+                  {cityOption.name}
+                </option>
+              );
+            })}
           </select>
+          {category === 'rent' && (
+            <small className="form-hint">Para anuncios de inmuebles, la ciudad es obligatoria</small>
+          )}
         </div>
 
-        <div className="form-group">
-          <label>Alcance del anuncio *</label>
-          <div className="scope-buttons">
-            <button
-              type="button"
-              className={`scope-btn ${formData.scope === 'NEIGHBORHOOD' ? 'active' : ''} ${category === 'rent' ? '' : category === 'items' ? 'disabled' : ''}`}
-              onClick={() => setFormData({ ...formData, scope: 'NEIGHBORHOOD' })}
-              disabled={category === 'rent' ? false : category === 'items' ? false : false}
-            >
-              📍 Barrio
-            </button>
-            <button
-              type="button"
-              className={`scope-btn ${formData.scope === 'CITY' ? 'active' : ''}`}
-              onClick={() => setFormData({ ...formData, scope: 'CITY' })}
-            >
-              🏙 Ciudad
-            </button>
-            <button
-              type="button"
-              className={`scope-btn ${formData.scope === 'COUNTRY' ? 'active' : ''} ${category === 'rent' ? 'disabled' : ''}`}
-              onClick={() => setFormData({ ...formData, scope: 'COUNTRY' })}
-              disabled={category === 'rent'}
-            >
-              🇨🇺 Toda Cuba
-            </button>
-          </div>
-        </div>
 
         {category === 'rent' && (
           <>
@@ -327,19 +462,22 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
               </select>
             </div>
 
-            <div className="form-group">
-              <label>Período de alquiler</label>
-              <select
-                name="rent_period"
-                value={formData.rent_period}
-                onChange={handleChange}
-                className="select"
-              >
-                <option value="">Selecciona...</option>
-                <option value="daily">Diario</option>
-                <option value="monthly">Mensual</option>
-              </select>
-            </div>
+            {transactionType === 'rent' && (
+              <div className="form-group">
+                <label>Período de alquiler *</label>
+                <select
+                  name="rent_period"
+                  value={formData.rent_period}
+                  onChange={handleChange}
+                  className="select"
+                  required={transactionType === 'rent'}
+                >
+                  <option value="">Selecciona...</option>
+                  <option value="daily">Diario</option>
+                  <option value="monthly">Mensual</option>
+                </select>
+              </div>
+            )}
 
             <div className="form-group">
               <label>Referencia / cerca de...</label>
@@ -593,19 +731,102 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
         )}
 
         <div className="form-group">
-          <label>Fotografías (hasta 8)</label>
+          <label>Fotografías * (mínimo 1, hasta 5)</label>
           <input
             type="file"
             accept="image/*"
             multiple
             onChange={handlePhotoChange}
             className="file-input"
+            required
           />
+          <small className="form-hint">
+            {photos.length + (existingPhotos.length - photosToDelete.length)} / 5 fotografías
+            {(photos.length + (existingPhotos.length - photosToDelete.length)) === 0 && ' - Se requiere al menos 1 fotografía'}
+          </small>
+          {existingPhotos.length > 0 && (
+            <div className="photo-preview">
+              <p style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>Fotografías actuales:</p>
+              {existingPhotos.map((photo, index) => {
+                const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 
+                              (import.meta.env.DEV ? 'http://localhost:3000' : 'https://cubalibre.onrender.com');
+                const photoUrl = photo.startsWith('/uploads') ? `${apiUrl}${photo}` : photo;
+                return (
+                  <div key={`existing-${index}`} className="photo-preview-item" style={{ position: 'relative' }}>
+                    <img src={photoUrl} alt={`Existing ${index + 1}`} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const photoUrl = photo.startsWith('/uploads') 
+                          ? photo 
+                          : photo.replace(/^https?:\/\/[^\/]+/, '');
+                        // Сохраняем URL фотографии для удаления на сервере
+                        setPhotosToDelete(prev => [...prev, photoUrl]);
+                        // Удаляем из отображаемых
+                        setExistingPhotos(prev => prev.filter((_, i) => i !== index));
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '5px',
+                        right: '5px',
+                        background: 'rgba(220, 53, 69, 0.9)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '28px',
+                        height: '28px',
+                        cursor: 'pointer',
+                        fontSize: '18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        lineHeight: 1,
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                      }}
+                      title="Eliminar foto"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {photos.length > 0 && (
             <div className="photo-preview">
+              <p style={{ fontSize: '12px', color: '#666', marginBottom: '8px', marginTop: existingPhotos.length > 0 ? '12px' : '0' }}>
+                Nuevas fotografías:
+              </p>
               {photos.map((photo, index) => (
-                <div key={index} className="photo-preview-item">
+                <div key={`new-${index}`} className="photo-preview-item" style={{ position: 'relative' }}>
                   <img src={URL.createObjectURL(photo)} alt={`Preview ${index + 1}`} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotos(prev => prev.filter((_, i) => i !== index));
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '5px',
+                      right: '5px',
+                      background: 'rgba(220, 53, 69, 0.9)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '28px',
+                      height: '28px',
+                      cursor: 'pointer',
+                      fontSize: '18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      lineHeight: 1,
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                    }}
+                    title="Eliminar foto"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
@@ -617,7 +838,7 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
           className="btn btn-primary submit-btn"
           disabled={loading}
         >
-          {loading ? 'Publicando...' : 'Publicar'}
+          {loading ? (isEditing ? 'Guardando...' : 'Publicando...') : (isEditing ? 'Guardar cambios' : 'Publicar')}
         </button>
       </form>
     </div>

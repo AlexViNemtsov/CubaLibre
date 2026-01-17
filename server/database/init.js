@@ -3,12 +3,35 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+// Определяем пользователя БД по умолчанию (имя текущего пользователя системы)
+const defaultDbUser = process.env.USER || process.env.USERNAME || 'postgres';
+
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'cuba_clasificados',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  user: process.env.DB_USER || defaultDbUser,
+  password: process.env.DB_PASSWORD || '',
+});
+
+// Обработка ошибок подключения
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+// Тестовое подключение при инициализации
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('❌ Database connection error:', err.message);
+    console.error('💡 Проверьте настройки в .env файле:');
+    console.error('   DB_HOST:', process.env.DB_HOST || 'localhost');
+    console.error('   DB_PORT:', process.env.DB_PORT || 5432);
+    console.error('   DB_NAME:', process.env.DB_NAME || 'cuba_clasificados');
+    console.error('   DB_USER:', process.env.DB_USER || 'postgres');
+  } else {
+    console.log('✅ Database connection successful');
+  }
 });
 
 async function initDatabase() {
@@ -33,6 +56,28 @@ async function initDatabase() {
           // Игнорируем ошибки если таблицы уже существуют
           if (!err.message.includes('already exists') && !err.message.includes('duplicate')) {
             console.warn('Warning executing query:', err.message);
+          }
+        }
+      }
+    }
+    
+    // Выполняем миграции
+    const migrationFiles = [
+      'migration_add_apartment_fields.sql',
+      'migration_add_views.sql'
+    ];
+    
+    for (const migrationFile of migrationFiles) {
+      const migrationPath = path.join(__dirname, migrationFile);
+      if (fs.existsSync(migrationPath)) {
+        try {
+          const migration = fs.readFileSync(migrationPath, 'utf8');
+          await pool.query(migration);
+          console.log(`✅ Migration ${migrationFile} executed successfully`);
+        } catch (err) {
+          // Игнорируем ошибки если миграция уже выполнена
+          if (!err.message.includes('already exists') && !err.message.includes('duplicate') && !err.message.includes('already exists')) {
+            console.warn(`Warning executing migration ${migrationFile}:`, err.message);
           }
         }
       }

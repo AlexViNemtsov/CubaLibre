@@ -1,0 +1,11 @@
+node_modules
+frontend/node_modules
+uploads
+.env
+.git
+*.log
+.DS_Store
+
+
+
+

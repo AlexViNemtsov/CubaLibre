@@ -29,7 +29,16 @@ function CitySelection({ onSelect }) {
         return res.json();
       })
       .then(data => {
-        setCities(data.cities || []);
+        const citiesList = data.cities || [];
+        // Сортируем: сначала Habana, потом Toda Cuba, затем остальные
+        const sortedCities = citiesList.sort((a, b) => {
+          if (a.id === 'la-habana') return -1;
+          if (b.id === 'la-habana') return 1;
+          if (a.id === 'all') return -1;
+          if (b.id === 'all') return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setCities(sortedCities);
         setNeighborhoods(data.neighborhoods || {});
         setLoading(false);
       })
@@ -46,6 +55,12 @@ function CitySelection({ onSelect }) {
   }, []);
 
   const handleCityClick = (cityId) => {
+    console.log('City clicked:', cityId);
+    if (!onSelect) {
+      console.error('onSelect callback is not provided');
+      return;
+    }
+    
     if (cityId === 'all') {
       onSelect('all');
     } else {
@@ -75,16 +90,64 @@ function CitySelection({ onSelect }) {
       </div>
       
       <div className="city-list">
-        {cities.map(city => (
-          <button
-            key={city.id}
-            className="city-card"
-            onClick={() => handleCityClick(city.id)}
-          >
-            <div className="city-name">{city.name}</div>
-            {city.default && <span className="city-badge">Por defecto</span>}
-          </button>
-        ))}
+        {cities.map((city, index) => {
+          // Определяем градиент для каждого города
+          const gradients = [
+            'gradient-blue',
+            'gradient-red',
+            'gradient-gold',
+            'gradient-green',
+            'gradient-purple',
+            'gradient-orange',
+            'gradient-teal',
+            'gradient-pink'
+          ];
+          const gradientClass = city.id === 'all' 
+            ? 'gradient-special' 
+            : gradients[index % gradients.length];
+          
+          // Уникальные иконки для каждого города
+          const cityIcons = {
+            'all': '🇨🇺',
+            'la-habana': '🏛️',
+            'santiago-de-cuba': '⛰️',
+            'camaguey': '🏰',
+            'holguin': '🌴',
+            'santa-clara': '🎭',
+            'guantanamo': '🌊',
+            'bayamo': '🎺',
+            'cienfuegos': '⚓',
+            'pinar-del-rio': '🌾',
+            'matanzas': '🌉',
+            'las-tunas': '🌵',
+            'sancti-spiritus': '⛪',
+            'ciiego-de-avila': '🌺',
+            'villa-clara': '🏖️',
+            'artemisa': '🌻',
+            'mayabeque': '🌿',
+            'isla-de-la-juventud': '🏝️'
+          };
+          
+          return (
+            <button
+              key={city.id}
+              type="button"
+              className={`city-card ${gradientClass}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Button clicked for city:', city.id);
+                handleCityClick(city.id);
+              }}
+            >
+              <div className="city-icon">
+                {cityIcons[city.id] || '🏙️'}
+              </div>
+              <div className="city-name">{city.name}</div>
+              {city.default && <span className="city-badge">⭐ Por defecto</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
