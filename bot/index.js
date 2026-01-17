@@ -81,7 +81,7 @@ Después de suscribirte, usa /start nuevamente.
   }
   
   bot.sendMessage(chatId, `
-👋 ¡Hola, ${firstName}!
+👋 Hola, ${firstName}!
 
 Bienvenido a Cuba Clasificados — tu tablón de anuncios local.
 
@@ -89,7 +89,7 @@ Bienvenido a Cuba Clasificados — tu tablón de anuncios local.
 👕 Artículos personales  
 🛠 Servicios
 
-Usa el botón de abajo para abrir la aplicación:
+¡Y ahora entra rápidamente a la aplicación!
   `, {
     reply_markup: {
       inline_keyboard: [[
