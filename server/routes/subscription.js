@@ -10,20 +10,46 @@ const REQUIRED_CHANNEL = process.env.REQUIRED_CHANNEL || '@CubaClasificados';
 // Проверка подписки на канал
 router.post('/check', async (req, res) => {
   try {
-    const { userId } = req.body;
+    let { userId } = req.body;
     
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
     
+    // Убеждаемся, что userId - это число (Telegram API требует число)
+    userId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    
+    if (isNaN(userId)) {
+      console.error('Invalid userId format:', req.body.userId);
+      // Разрешаем доступ если userId невалидный (чтобы не блокировать пользователей)
+      return res.json({ 
+        subscribed: true,
+        channel: REQUIRED_CHANNEL,
+        warning: 'Invalid user ID format, access granted'
+      });
+    }
+    
     try {
-      const chatId = REQUIRED_CHANNEL.startsWith('@') ? REQUIRED_CHANNEL : `@${REQUIRED_CHANNEL}`;
+      // Формируем chatId правильно
+      let chatId = REQUIRED_CHANNEL;
+      if (!chatId.startsWith('@')) {
+        chatId = `@${chatId}`;
+      }
+      
+      console.log('Checking subscription:', { chatId, userId, userIdType: typeof userId });
+      
       const member = await bot.getChatMember(chatId, userId);
       
       // Статусы: 'member', 'administrator', 'creator' - подписан
       const isSubscribed = member.status === 'member' || 
                           member.status === 'administrator' || 
                           member.status === 'creator';
+      
+      console.log('Subscription check result:', { 
+        userId, 
+        status: member.status, 
+        isSubscribed 
+      });
       
       res.json({ 
         subscribed: isSubscribed,
@@ -33,9 +59,25 @@ router.post('/check', async (req, res) => {
       console.error('Error checking subscription:', error);
       console.error('Error details:', {
         message: error.message,
+        code: error.code,
         response: error.response?.body,
         statusCode: error.response?.statusCode
       });
+      
+      // Обработка различных типов ошибок Telegram API
+      const errorMessage = error.message || '';
+      
+      // Если ошибка связана с форматом данных
+      if (errorMessage.includes('string did not match') || 
+          errorMessage.includes('Bad Request') ||
+          error.code === 'ETELEGRAM') {
+        console.warn('⚠️  Telegram API format error, allowing access');
+        return res.json({ 
+          subscribed: true,
+          channel: REQUIRED_CHANNEL,
+          warning: 'Subscription check error, access granted'
+        });
+      }
       
       // Если канал не найден или другая ошибка API
       if (error.response) {
@@ -71,7 +113,7 @@ router.post('/check', async (req, res) => {
         }
       }
       
-      // Для других ошибок тоже разрешаем доступ (чтобы не блокировать пользователей)
+      // Для всех остальных ошибок разрешаем доступ (чтобы не блокировать пользователей)
       console.warn('⚠️  Unknown error in subscription check, allowing access');
       return res.json({ 
         subscribed: true,
@@ -82,7 +124,13 @@ router.post('/check', async (req, res) => {
     }
   } catch (error) {
     console.error('Error in subscription check:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Даже при критической ошибке разрешаем доступ
+    return res.json({ 
+      subscribed: true,
+      channel: REQUIRED_CHANNEL,
+      error: 'Internal error, access granted',
+      warning: 'Subscription check failed, but access allowed'
+    });
   }
 });
 

@@ -59,14 +59,22 @@ function SubscriptionGate({ children }) {
       }
 
       console.log('📡 Sending request to:', `${API_URL}/subscription/check`);
-      console.log('👤 User ID:', user.id);
+      console.log('👤 User ID:', user.id, 'Type:', typeof user.id);
+
+      // Убеждаемся, что userId - это число
+      const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+      
+      if (isNaN(userId)) {
+        console.error('Invalid user ID:', user.id);
+        throw new Error('Invalid user ID format');
+      }
 
       const response = await fetch(`${API_URL}/subscription/check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({ userId: userId }),
       });
 
       console.log('📥 Response status:', response.status);
