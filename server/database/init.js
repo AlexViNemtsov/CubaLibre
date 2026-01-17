@@ -6,13 +6,37 @@ require('dotenv').config();
 // Определяем пользователя БД по умолчанию (имя текущего пользователя системы)
 const defaultDbUser = process.env.USER || process.env.USERNAME || 'postgres';
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'cuba_clasificados',
-  user: process.env.DB_USER || defaultDbUser,
-  password: process.env.DB_PASSWORD || '',
-});
+// Настройка подключения к БД
+// Render предоставляет DATABASE_URL, но мы также поддерживаем отдельные переменные
+let poolConfig = {};
+
+if (process.env.DATABASE_URL) {
+  // Используем DATABASE_URL если он есть (Render, Railway и т.д.)
+  poolConfig = {
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    max: 20,
+  };
+  console.log('📊 Using DATABASE_URL for connection');
+} else {
+  // Используем отдельные переменные
+  poolConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'cuba_clasificados',
+    user: process.env.DB_USER || defaultDbUser,
+    password: process.env.DB_PASSWORD || '',
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    max: 20,
+  };
+  console.log('📊 Using individual DB variables for connection');
+}
+
+const pool = new Pool(poolConfig);
 
 // Обработка ошибок подключения
 pool.on('error', (err, client) => {

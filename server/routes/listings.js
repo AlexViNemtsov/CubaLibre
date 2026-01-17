@@ -636,6 +636,8 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
     }
   } catch (error) {
     console.error('Error creating listing:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     
     // Если ошибка базы данных
@@ -645,11 +647,18 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
     
     // Если ошибка подключения к БД
     if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || 
-        error.code === '28P01' || error.code === '3D000' ||
-        error.message && (error.message.includes('connection') || error.message.includes('database'))) {
-      console.error('Database connection error:', error.code, error.message);
+        error.code === '28P01' || error.code === '3D000' || error.code === '57P01' ||
+        error.code === '57P02' || error.code === '57P03' ||
+        (error.message && (error.message.includes('connection') || error.message.includes('database') || 
+         error.message.includes('timeout') || error.message.includes('ECONNREFUSED')))) {
+      console.error('❌ Database connection error:', {
+        code: error.code,
+        message: error.message,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME
+      });
       return res.status(500).json({ 
-        error: 'Error de conexión a la base de datos',
+        error: 'Error de conexión a la base de datos. Por favor, intenta de nuevo en unos momentos.',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
