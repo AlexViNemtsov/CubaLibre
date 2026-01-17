@@ -55,6 +55,42 @@ const handleMulterError = (err, req, res, next) => {
   next(err);
 };
 
+// Функция для отправки уведомления администратору о новом пользователе
+async function notifyAdminAboutNewUser(telegramId, username, firstName, lastName) {
+  try {
+    const adminId = process.env.TELEGRAM_ADMIN_ID;
+    if (!adminId) {
+      console.log('ℹ️ TELEGRAM_ADMIN_ID not set, skipping admin notification');
+      return;
+    }
+
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      console.log('ℹ️ TELEGRAM_BOT_TOKEN not set, skipping admin notification');
+      return;
+    }
+
+    // Создаем отдельный экземпляр бота для отправки уведомлений
+    const TelegramBot = require('node-telegram-bot-api');
+    const bot = new TelegramBot(botToken);
+
+    const userInfo = [
+      `👤 Новый пользователь начал работу с приложением!`,
+      ``,
+      `🆔 ID: ${telegramId}`,
+      `👤 Имя: ${firstName || 'Не указано'} ${lastName || ''}`,
+      `📱 Username: @${username || 'не указан'}`,
+      `⏰ Время: ${new Date().toLocaleString('ru-RU')}`
+    ].join('\n');
+
+    await bot.sendMessage(adminId, userInfo);
+    console.log('✅ Admin notification sent about new user:', telegramId);
+  } catch (error) {
+    console.error('❌ Error sending admin notification:', error.message);
+    // Не прерываем выполнение, если уведомление не отправилось
+  }
+}
+
 // Получить или создать пользователя
 async function getOrCreateUser(telegramId, username, firstName, lastName) {
   let client;
@@ -68,12 +104,17 @@ async function getOrCreateUser(telegramId, username, firstName, lastName) {
       [telegramIdNum]
     );
     
-    if (result.rows.length === 0) {
+    const isNewUser = result.rows.length === 0;
+    
+    if (isNewUser) {
       result = await client.query(
         'INSERT INTO users (telegram_id, username, first_name, last_name) VALUES ($1, $2, $3, $4) RETURNING id',
         [telegramIdNum, username, firstName, lastName]
       );
       console.log('✅ Created new user:', { telegram_id: telegramIdNum, username });
+      
+      // Отправляем уведомление администратору о новом пользователе
+      await notifyAdminAboutNewUser(telegramIdNum, username, firstName, lastName);
     } else {
       console.log('✅ Found existing user:', { telegram_id: telegramIdNum, user_id: result.rows[0].id });
     }
