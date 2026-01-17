@@ -1,7 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../database/init');
-const { optionalAuthenticateTelegram, isAdmin } = require('../middleware/auth');
+const authMiddleware = require('../middleware/auth');
+const { optionalAuthenticateTelegram } = authMiddleware;
+const isAdmin = authMiddleware.isAdmin || function(telegramUserId) {
+  // Fallback функция, если isAdmin не экспортирована
+  if (!telegramUserId) return false;
+  const adminId = process.env.TELEGRAM_ADMIN_ID;
+  const adminIds = process.env.TELEGRAM_ADMIN_IDS;
+  if (adminId && String(telegramUserId) === String(adminId)) {
+    return true;
+  }
+  if (adminIds) {
+    const adminIdList = adminIds.split(',').map(id => id.trim());
+    return adminIdList.includes(String(telegramUserId));
+  }
+  return false;
+};
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
