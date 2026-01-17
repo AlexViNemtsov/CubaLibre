@@ -205,20 +205,35 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
         photos: photos.length,
         existingPhotos: existingPhotos.length,
         photosToDelete: photosToDelete.length,
-        totalPhotos
+        totalPhotos,
+        isEditing
       });
       
-      if (totalPhotos === 0) {
+      // При создании нового объявления должны быть новые фото
+      if (!isEditing && photos.length === 0) {
+        console.error('❌ No new photos for new listing');
         setError('Por favor, agrega al menos una fotografía');
         setLoading(false);
         return;
       }
       
-      if (photos.length === 0 && !isEditing) {
+      // При редактировании проверяем общее количество (новые + существующие - удаленные)
+      if (isEditing && totalPhotos === 0) {
+        console.error('❌ No photos after edit');
+        setError('El anuncio debe tener al menos una fotografía');
+        setLoading(false);
+        return;
+      }
+      
+      // Общая проверка на минимум 1 фото
+      if (totalPhotos === 0) {
+        console.error('❌ Total photos is 0');
         setError('Por favor, agrega al menos una fotografía');
         setLoading(false);
         return;
       }
+      
+      console.log('✅ Photo validation passed:', totalPhotos, 'photos');
       
       // Валидация цены: цена обязательна для всех категорий (либо указана цена, либо отмечено "Negociable")
       if (!formData.price && !formData.is_negotiable) {

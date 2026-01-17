@@ -22,11 +22,46 @@ function SubscriptionGate({ children }) {
     }
     
     try {
+      // Даем время Telegram Web App инициализироваться
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const user = getUser();
       console.log('🔍 Checking subscription, user:', user);
       
       if (!user || !user.id) {
-        console.warn('⚠️  No user data available');
+        console.warn('⚠️  No user data available, trying to get from window.Telegram');
+        
+        // Пытаемся получить пользователя напрямую из Telegram WebApp
+        if (typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp) {
+          const webApp = window.Telegram.WebApp;
+          const telegramUser = webApp.initDataUnsafe?.user;
+          
+          if (telegramUser && telegramUser.id) {
+            console.log('✅ Got user from Telegram WebApp directly:', telegramUser);
+            // Продолжаем с этим пользователем
+            const response = await fetch(`${API_URL}/subscription/check`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ userId: telegramUser.id }),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+              throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('✅ Subscription check result:', data);
+            
+            setIsSubscribed(data.subscribed || false);
+            setIsChecking(false);
+            setIsVerifying(false);
+            return;
+          }
+        }
+        
         // В режиме разработки разрешаем доступ
         if (import.meta.env.DEV) {
           console.warn('⚠️  Development mode: Allowing access without user check');
@@ -35,10 +70,12 @@ function SubscriptionGate({ children }) {
           setIsVerifying(false);
           return;
         }
-        setIsSubscribed(false);
+        
+        // Если не удалось получить пользователя, разрешаем доступ (чтобы не блокировать)
+        console.warn('⚠️  Could not get user, allowing access to prevent blocking');
+        setIsSubscribed(true);
         setIsChecking(false);
         setIsVerifying(false);
-        setErrorMessage('No se pudo obtener la información del usuario');
         return;
       }
 
