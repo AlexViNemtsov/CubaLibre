@@ -49,12 +49,22 @@ pool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('❌ Database connection error:', err.message);
     console.error('💡 Проверьте настройки в .env файле:');
-    console.error('   DB_HOST:', process.env.DB_HOST || 'localhost');
-    console.error('   DB_PORT:', process.env.DB_PORT || 5432);
-    console.error('   DB_NAME:', process.env.DB_NAME || 'cuba_clasificados');
-    console.error('   DB_USER:', process.env.DB_USER || 'postgres');
+    if (process.env.DATABASE_URL) {
+      console.error('   DATABASE_URL: установлен (скрыт)');
+    } else {
+      console.error('   DB_HOST:', process.env.DB_HOST || 'localhost');
+      console.error('   DB_PORT:', process.env.DB_PORT || 5432);
+      console.error('   DB_NAME:', process.env.DB_NAME || 'cuba_clasificados');
+      console.error('   DB_USER:', process.env.DB_USER || 'postgres');
+    }
+    console.error('   NODE_ENV:', process.env.NODE_ENV);
   } else {
     console.log('✅ Database connection successful');
+    if (process.env.DATABASE_URL) {
+      console.log('📊 Connected using DATABASE_URL');
+    } else {
+      console.log('📊 Connected using individual DB variables');
+    }
   }
 });
 

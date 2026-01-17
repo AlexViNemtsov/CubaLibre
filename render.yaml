@@ -9,6 +9,8 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: DATABASE_URL
+        sync: false
       - key: DB_HOST
         sync: false
       - key: DB_PORT
