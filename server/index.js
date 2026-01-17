@@ -8,6 +8,20 @@ const citiesRouter = require('./routes/cities');
 const subscriptionRouter = require('./routes/subscription');
 const { initDatabase, pool } = require('./database/init');
 
+// Запуск Telegram бота (если токен установлен)
+let bot = null;
+if (process.env.TELEGRAM_BOT_TOKEN) {
+  try {
+    bot = require('../bot/index.js');
+    console.log('🤖 Telegram Bot initialized');
+  } catch (error) {
+    console.error('⚠️  Failed to initialize Telegram bot:', error.message);
+    console.log('💡 Bot will not be available, but server will continue running');
+  }
+} else {
+  console.log('⚠️  TELEGRAM_BOT_TOKEN not set, bot will not be available');
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
