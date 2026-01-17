@@ -1104,7 +1104,6 @@ router.put('/:id', optionalAuthenticateTelegram, upload.array('photos', 5), hand
 // Проверить, является ли пользователь администратором
 router.get('/check-admin', optionalAuthenticateTelegram, async (req, res) => {
   try {
-    const { isAdmin } = require('../middleware/auth');
     const telegramUser = req.telegramUser;
     
     if (!telegramUser || !telegramUser.id) {
