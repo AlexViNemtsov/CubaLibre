@@ -221,6 +221,50 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
     }
   };
 
+  // Функция для получения ссылки на объявление
+  const getListingUrl = () => {
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}?listing=${listing.id}`;
+  };
+
+  // Функция для копирования ссылки в буфер обмена
+  const handleShare = async () => {
+    const url = getListingUrl();
+    
+    try {
+      // Пробуем использовать Web Share API, если доступен
+      if (navigator.share) {
+        await navigator.share({
+          title: listing.title,
+          text: listing.description.substring(0, 100) + '...',
+          url: url
+        });
+      } else {
+        // Если Web Share API не доступен, копируем в буфер обмена
+        await navigator.clipboard.writeText(url);
+        if (onSuccess) {
+          onSuccess('Ссылка скопирована в буфер обмена!');
+        } else {
+          alert('Ссылка скопирована в буфер обмена!');
+        }
+      }
+    } catch (error) {
+      // Fallback: копируем в буфер обмена
+      try {
+        await navigator.clipboard.writeText(url);
+        if (onSuccess) {
+          onSuccess('Ссылка скопирована в буфер обмена!');
+        } else {
+          alert('Ссылка скопирована в буфер обмена!');
+        }
+      } catch (clipboardError) {
+        console.error('Error copying to clipboard:', clipboardError);
+        // Показываем ссылку в alert как последний вариант
+        prompt('Скопируйте ссылку:', url);
+      }
+    }
+  };
+
   const handleDelete = async () => {
     // Используем стандартный confirm для браузера
     const confirmed = window.confirm('¿Estás seguro de que quieres eliminar este anuncio? Esta acción no se puede deshacer.');
@@ -618,6 +662,18 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
               </button>
             </div>
           )}
+          <button 
+            className="btn btn-primary" 
+            onClick={handleShare}
+            style={{ 
+              width: '100%',
+              marginBottom: '10px',
+              backgroundColor: '#667eea',
+              borderColor: '#667eea'
+            }}
+          >
+            📤 Compartir anuncio
+          </button>
           {(listing.contact_telegram || listing.username) && (
             <button className="btn btn-primary" onClick={handleTelegramClick}>
               ✉️ Escribir en Telegram

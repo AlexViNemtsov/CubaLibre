@@ -39,11 +39,67 @@ function App() {
       if (isDarkMode()) {
         document.body.classList.add('dark');
       }
+      
+      // Проверяем URL параметры для deep linking
+      const urlParams = new URLSearchParams(window.location.search);
+      const listingId = urlParams.get('listing');
+      
+      if (listingId) {
+        // Загружаем объявление по ID и открываем его
+        loadListingById(listingId);
+      }
     } catch (error) {
       console.error('Error initializing app:', error);
       // Продолжаем работу даже если Telegram Web App не доступен
     }
   }, []);
+  
+  // Функция для загрузки объявления по ID
+  const loadListingById = async (listingId) => {
+    try {
+      const getApiUrl = () => {
+        if (import.meta.env.DEV) {
+          return 'http://localhost:3000/api';
+        }
+        if (import.meta.env.VITE_API_URL) {
+          return import.meta.env.VITE_API_URL;
+        }
+        return 'https://cubalibre.onrender.com/api';
+      };
+      
+      const API_URL = getApiUrl();
+      const headers = {};
+      const initData = getInitData();
+      if (initData) {
+        headers['X-Telegram-Init-Data'] = initData;
+      }
+      
+      const response = await fetch(`${API_URL}/listings/${listingId}`, {
+        method: 'GET',
+        headers
+      });
+      
+      if (response.ok) {
+        const listing = await response.json();
+        setSelectedListing(listing);
+        setCurrentScreen('detail');
+        // Очищаем URL параметры после загрузки
+        window.history.replaceState({}, '', window.location.pathname);
+      } else {
+        console.error('Failed to load listing:', listingId);
+        setToast({
+          message: 'Объявление не найдено',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading listing:', error);
+      setToast({
+        message: 'Ошибка при загрузке объявления',
+        type: 'error'
+      });
+    }
+  };
 
   const handleCitySelect = (city, neighborhood = null) => {
     setSelectedCity(city);
