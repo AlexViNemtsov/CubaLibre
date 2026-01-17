@@ -19,6 +19,7 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMarkingSold, setIsMarkingSold] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Проверяем, является ли текущий пользователь владельцем
   const currentUser = getUser();
@@ -32,6 +33,36 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
     ? true  // В dev режиме всегда показываем кнопки для тестирования
     : (currentUserId && listingTelegramId && currentUserId === listingTelegramId);
   
+  // Проверяем, является ли пользователь администратором
+  useEffect(() => {
+    const checkAdmin = async () => {
+      try {
+        const headers = {};
+        const initData = getInitData();
+        if (initData) {
+          headers['X-Telegram-Init-Data'] = initData;
+        }
+        
+        const response = await fetch(`${API_URL}/listings/check-admin`, {
+          method: 'GET',
+          headers
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.isAdmin || false);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+      }
+    };
+    
+    if (currentUser) {
+      checkAdmin();
+    }
+  }, [currentUser]);
+  
   // Для отладки
   if (import.meta.env.DEV) {
     console.log('ListingDetail - Owner check:', {
@@ -39,6 +70,7 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
       currentUserId,
       listingTelegramId,
       isOwner,
+      isAdmin,
       listingId: listing.id,
       isDev: import.meta.env.DEV
     });
@@ -545,6 +577,44 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
                 }}
               >
                 {isDeleting ? 'Eliminando...' : '🗑️ Eliminar'}
+              </button>
+            </div>
+          )}
+          {isAdmin && !isOwner && (
+            <div className="admin-actions" style={{ 
+              display: 'flex', 
+              gap: '10px', 
+              marginBottom: '15px', 
+              flexWrap: 'wrap',
+              width: '100%'
+            }}>
+              <button 
+                type="button"
+                className="btn btn-danger" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const confirmed = window.confirm('⚠️ Вы администратор. Вы уверены, что хотите удалить это объявление?');
+                  if (confirmed) {
+                    handleDelete();
+                  }
+                }}
+                disabled={isDeleting}
+                style={{ 
+                  width: '100%', 
+                  backgroundColor: '#dc3545', 
+                  borderColor: '#dc3545',
+                  color: 'white',
+                  padding: '12px 20px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  opacity: isDeleting ? 0.6 : 1,
+                  border: 'none',
+                  borderRadius: '8px'
+                }}
+              >
+                {isDeleting ? 'Eliminando...' : '🔨 Удалить объявление (Админ)'}
               </button>
             </div>
           )}

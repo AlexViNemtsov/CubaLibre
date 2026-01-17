@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../database/init');
-const { optionalAuthenticateTelegram } = require('../middleware/auth');
+const { optionalAuthenticateTelegram, isAdmin } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -1101,6 +1101,24 @@ router.put('/:id', optionalAuthenticateTelegram, upload.array('photos', 5), hand
   }
 });
 
+// Проверить, является ли пользователь администратором
+router.get('/check-admin', optionalAuthenticateTelegram, async (req, res) => {
+  try {
+    const { isAdmin } = require('../middleware/auth');
+    const telegramUser = req.telegramUser;
+    
+    if (!telegramUser || !telegramUser.id) {
+      return res.json({ isAdmin: false });
+    }
+    
+    const adminStatus = isAdmin(telegramUser.id);
+    res.json({ isAdmin: adminStatus });
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    res.json({ isAdmin: false });
+  }
+});
+
 // Удалить объявление
 router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
   try {
@@ -1138,6 +1156,8 @@ router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
     // Логирование для отладки
     const listingTelegramId = listing.rows[0].telegram_id;
     const userTelegramId = telegramUser.id;
+    const userIsAdmin = isAdmin(userTelegramId);
+    
     console.log('Delete authorization check:', {
       listingId: id,
       listingTelegramId: listingTelegramId,
@@ -1145,18 +1165,52 @@ router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
       userTelegramId: userTelegramId,
       userTelegramIdType: typeof userTelegramId,
       isDevelopment: isDevelopment,
+      userIsAdmin: userIsAdmin,
       match: String(listingTelegramId) === String(userTelegramId)
     });
     
-    // В dev режиме пропускаем проверку владельца
-    // Сравниваем как строки, так как telegram_id может быть строкой или числом
-    if (!isDevelopment && String(listingTelegramId) !== String(userTelegramId)) {
+    // Проверяем права: либо пользователь владелец, либо администратор
+    const isOwner = String(listingTelegramId) === String(userTelegramId);
+    const canDelete = isDevelopment || isOwner || userIsAdmin;
+    
+    if (!canDelete) {
       console.error('Authorization failed:', {
         listingTelegramId,
         userTelegramId,
+        isOwner,
+        userIsAdmin,
         types: { listing: typeof listingTelegramId, user: typeof userTelegramId }
       });
       return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    // Логируем, если администратор удаляет чужое объявление
+    if (userIsAdmin && !isOwner) {
+      console.log('🔨 Admin deleting listing:', {
+        adminId: userTelegramId,
+        adminUsername: telegramUser.username,
+        listingId: id,
+        ownerId: listingTelegramId,
+        listingTitle: listing.rows[0].title
+      });
+      
+      // Отправляем уведомление администратору о удалении (опционально)
+      try {
+        const adminId = process.env.TELEGRAM_ADMIN_ID;
+        if (adminId && String(adminId) !== String(userTelegramId)) {
+          const TelegramBot = require('node-telegram-bot-api');
+          const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
+          await bot.sendMessage(adminId, 
+            `🔨 Администратор удалил объявление:\n\n` +
+            `ID объявления: ${id}\n` +
+            `Владелец: @${listing.rows[0].username || 'не указан'} (${listingTelegramId})\n` +
+            `Заголовок: ${listing.rows[0].title}\n` +
+            `Удалил: @${telegramUser.username || 'не указан'} (${userTelegramId})`
+          );
+        }
+      } catch (notifError) {
+        console.error('Error sending admin notification:', notifError.message);
+      }
     }
     
     const client = await pool.connect();

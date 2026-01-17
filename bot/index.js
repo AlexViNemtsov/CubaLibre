@@ -165,6 +165,51 @@ Después de suscribirte, usa /app nuevamente.
   });
 });
 
+// Команда для администраторов: удалить объявление
+bot.onText(/\/delete\s+(\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const listingId = match[1];
+  
+  // Проверяем, является ли пользователь администратором
+  const adminId = process.env.TELEGRAM_ADMIN_ID;
+  const adminIds = process.env.TELEGRAM_ADMIN_IDS;
+  
+  let isAdmin = false;
+  if (adminId && String(userId) === String(adminId)) {
+    isAdmin = true;
+  } else if (adminIds) {
+    const adminIdList = adminIds.split(',').map(id => id.trim());
+    isAdmin = adminIdList.includes(String(userId));
+  }
+  
+  if (!isAdmin) {
+    return bot.sendMessage(chatId, '❌ У вас нет прав для выполнения этой команды.');
+  }
+  
+  try {
+    // Удаляем объявление через API
+    const axios = require('axios');
+    const API_URL = process.env.WEB_APP_URL || 'https://cuba-clasificados.online';
+    
+    const response = await axios.delete(`${API_URL}/api/listings/${listingId}`, {
+      headers: {
+        'X-Admin-Delete': 'true',
+        'X-Admin-Id': userId
+      }
+    });
+    
+    if (response.data.success) {
+      bot.sendMessage(chatId, `✅ Объявление #${listingId} успешно удалено.`);
+    } else {
+      bot.sendMessage(chatId, `❌ Ошибка при удалении объявления #${listingId}.`);
+    }
+  } catch (error) {
+    console.error('Error deleting listing via bot:', error);
+    bot.sendMessage(chatId, `❌ Ошибка: ${error.message || 'Не удалось удалить объявление'}`);
+  }
+});
+
 // Обработка callback queries
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
