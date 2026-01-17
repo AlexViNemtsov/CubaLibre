@@ -1,11 +1,28 @@
 # Apache конфигурация для reg.ru
 # Поместите этот файл в корень домена вместе с index.html
 
-# SPA роутинг - все запросы на index.html
+# SPA роутинг - все запросы на index.html, но НЕ для статических файлов
 RewriteEngine On
 RewriteBase /
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
+
+# НЕ перенаправляем статические файлы (JS, CSS, изображения и т.д.)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# НЕ перенаправляем файлы из папки assets
+RewriteCond %{REQUEST_URI} ^/assets/
+RewriteRule ^ - [L]
+
+# НЕ перенаправляем файлы из папки images
+RewriteCond %{REQUEST_URI} ^/images/
+RewriteRule ^ - [L]
+
+# НЕ перенаправляем другие статические файлы
+RewriteCond %{REQUEST_URI} \.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot|json|xml)$ [NC]
+RewriteRule ^ - [L]
+
+# Все остальные запросы перенаправляем на index.html
 RewriteRule ^(.*)$ /index.html [L]
 
 # АГРЕССИВНОЕ ОТКЛЮЧЕНИЕ КЕШИРОВАНИЯ для reg.ru
@@ -37,8 +54,31 @@ RewriteRule ^(.*)$ /index.html [L]
   Header set X-Frame-Options "SAMEORIGIN"
 </IfModule>
 
-# MIME типы
+# MIME типы - КРИТИЧНО для правильной загрузки модулей
 <IfModule mod_mime.c>
+  # JavaScript модули
   AddType application/javascript .js
+  AddType application/javascript js
+  AddType text/javascript .js
+  
+  # CSS
   AddType text/css .css
+  
+  # Изображения
+  AddType image/jpeg .jpg .jpeg
+  AddType image/png .png
+  AddType image/webp .webp
+  AddType image/svg+xml .svg
+  
+  # JSON
+  AddType application/json .json
+  
+  # Шрифты
+  AddType font/woff .woff
+  AddType font/woff2 .woff2
 </IfModule>
+
+# Убеждаемся, что JavaScript файлы отдаются с правильным MIME типом
+<FilesMatch "\.js$">
+  ForceType application/javascript
+</FilesMatch>
