@@ -188,21 +188,66 @@ bot.onText(/\/delete\s+(\d+)/, async (msg, match) => {
   }
   
   try {
-    // Удаляем объявление через API
-    const axios = require('axios');
-    const API_URL = process.env.WEB_APP_URL || 'https://cuba-clasificados.online';
+    // Удаляем объявление через API (используем прямой запрос к БД)
+    const { pool } = require('../server/database/init');
+    const client = await pool.connect();
     
-    const response = await axios.delete(`${API_URL}/api/listings/${listingId}`, {
-      headers: {
-        'X-Admin-Delete': 'true',
-        'X-Admin-Id': userId
+    try {
+      await client.query('BEGIN');
+      
+      // Получаем информацию об объявлении перед удалением
+      const listingResult = await client.query(
+        'SELECT l.*, u.telegram_id, u.username FROM listings l JOIN users u ON l.user_id = u.id WHERE l.id = $1',
+        [listingId]
+      );
+      
+      if (listingResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return bot.sendMessage(chatId, `❌ Объявление #${listingId} не найдено.`);
       }
-    });
-    
-    if (response.data.success) {
-      bot.sendMessage(chatId, `✅ Объявление #${listingId} успешно удалено.`);
-    } else {
-      bot.sendMessage(chatId, `❌ Ошибка при удалении объявления #${listingId}.`);
+      
+      const listing = listingResult.rows[0];
+      
+      // Удаляем фотографии
+      const photos = await client.query(
+        'SELECT photo_url FROM listing_photos WHERE listing_id = $1',
+        [listingId]
+      );
+      
+      const fs = require('fs');
+      const path = require('path');
+      for (const photo of photos.rows) {
+        const photoPath = photo.photo_url;
+        const fullPath = path.join(process.env.UPLOAD_DIR || './uploads', photoPath.replace('/uploads/', ''));
+        try {
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        } catch (err) {
+          console.warn('Error deleting photo file:', err.message);
+        }
+      }
+      
+      // Удаляем записи о фотографиях
+      await client.query('DELETE FROM listing_photos WHERE listing_id = $1', [listingId]);
+      
+      // Удаляем объявление
+      await client.query('DELETE FROM listings WHERE id = $1', [listingId]);
+      
+      await client.query('COMMIT');
+      
+      bot.sendMessage(chatId, 
+        `✅ Объявление #${listingId} успешно удалено администратором.\n\n` +
+        `📋 Информация об объявлении:\n` +
+        `Заголовок: ${listing.title}\n` +
+        `Владелец: @${listing.username || 'не указан'} (${listing.telegram_id})\n` +
+        `Удалил: @${msg.from.username || 'не указан'} (${userId})`
+      );
+    } catch (dbError) {
+      await client.query('ROLLBACK');
+      throw dbError;
+    } finally {
+      client.release();
     }
   } catch (error) {
     console.error('Error deleting listing via bot:', error);
