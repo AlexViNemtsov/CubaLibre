@@ -189,7 +189,9 @@ bot.onText(/\/delete\s+(\d+)/, async (msg, match) => {
   
   try {
     // Удаляем объявление через API (используем прямой запрос к БД)
-    const { pool } = require('../server/database/init');
+    const path = require('path');
+    const dbInitPath = path.join(__dirname, '../server/database/init');
+    const { pool } = require(dbInitPath);
     const client = await pool.connect();
     
     try {
