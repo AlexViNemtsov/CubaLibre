@@ -5,22 +5,12 @@
 RewriteEngine On
 RewriteBase /
 
-# НЕ перенаправляем статические файлы (JS, CSS, изображения и т.д.)
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
+# НЕ перенаправляем существующие файлы и папки
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
 
-# НЕ перенаправляем файлы из папки assets
-RewriteCond %{REQUEST_URI} ^/assets/
-RewriteRule ^ - [L]
-
-# НЕ перенаправляем файлы из папки images
-RewriteCond %{REQUEST_URI} ^/images/
-RewriteRule ^ - [L]
-
-# НЕ перенаправляем другие статические файлы
-RewriteCond %{REQUEST_URI} \.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot|json|xml)$ [NC]
-RewriteRule ^ - [L]
+# НЕ перенаправляем статические файлы по расширению
+RewriteCond %{REQUEST_URI} !\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot|json|xml|html)$ [NC]
 
 # Все остальные запросы перенаправляем на index.html
 RewriteRule ^(.*)$ /index.html [L]
