@@ -201,11 +201,29 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
       const initData = getInitData();
       if (initData) {
         headers['X-Telegram-Init-Data'] = initData;
+        // Парсим initData для логирования (без чувствительных данных)
+        try {
+          const urlParams = new URLSearchParams(initData);
+          const userStr = urlParams.get('user');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            console.log('Telegram user from initData:', {
+              id: user.id,
+              username: user.username,
+              first_name: user.first_name
+            });
+          }
+        } catch (e) {
+          console.warn('Could not parse user from initData:', e);
+        }
+      } else {
+        console.warn('⚠️ No initData available for delete request');
       }
 
       console.log('Deleting listing:', listing.id);
+      console.log('Listing owner (if available):', listing.user_id);
       console.log('API URL:', `${API_URL}/listings/${listing.id}`);
-      console.log('Headers:', headers);
+      console.log('Headers:', Object.keys(headers));
 
       const response = await fetch(`${API_URL}/listings/${listing.id}`, {
         method: 'DELETE',

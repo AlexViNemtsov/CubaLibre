@@ -1088,8 +1088,27 @@ router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
       return res.status(404).json({ error: 'Listing not found' });
     }
     
+    // Логирование для отладки
+    const listingTelegramId = listing.rows[0].telegram_id;
+    const userTelegramId = telegramUser.id;
+    console.log('Delete authorization check:', {
+      listingId: id,
+      listingTelegramId: listingTelegramId,
+      listingTelegramIdType: typeof listingTelegramId,
+      userTelegramId: userTelegramId,
+      userTelegramIdType: typeof userTelegramId,
+      isDevelopment: isDevelopment,
+      match: String(listingTelegramId) === String(userTelegramId)
+    });
+    
     // В dev режиме пропускаем проверку владельца
-    if (!isDevelopment && listing.rows[0].telegram_id !== telegramUser.id) {
+    // Сравниваем как строки, так как telegram_id может быть строкой или числом
+    if (!isDevelopment && String(listingTelegramId) !== String(userTelegramId)) {
+      console.error('Authorization failed:', {
+        listingTelegramId,
+        userTelegramId,
+        types: { listing: typeof listingTelegramId, user: typeof userTelegramId }
+      });
       return res.status(403).json({ error: 'Not authorized' });
     }
     
