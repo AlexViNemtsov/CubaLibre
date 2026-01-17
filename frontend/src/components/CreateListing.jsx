@@ -282,9 +282,30 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
       }
 
       // Фотографии
-      photos.forEach(photo => {
+      console.log('📷 Adding photos to FormData:', photos.length);
+      if (photos.length === 0) {
+        console.error('❌ CRITICAL: No photos in array!');
+        console.error('Photos state:', photos);
+        console.error('Existing photos:', existingPhotos.length);
+        console.error('Photos to delete:', photosToDelete.length);
+      }
+      photos.forEach((photo, index) => {
+        console.log(`  Photo ${index + 1}:`, {
+          name: photo.name,
+          type: photo.type,
+          size: photo.size,
+          lastModified: photo.lastModified
+        });
         submitData.append('photos', photo);
       });
+      
+      // Проверяем что фото действительно добавлены в FormData
+      const formDataEntries = Array.from(submitData.entries());
+      const photoEntries = formDataEntries.filter(([key]) => key === 'photos');
+      console.log('✅ Photos in FormData:', photoEntries.length);
+      if (photoEntries.length === 0 && photos.length > 0) {
+        console.error('❌ CRITICAL: Photos not added to FormData!');
+      }
 
       // Фотографии для удаления (при редактировании)
       if (isEditing && photosToDelete.length > 0) {
