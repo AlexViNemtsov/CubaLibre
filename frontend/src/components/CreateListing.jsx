@@ -201,39 +201,60 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
       
       // Валидация: минимум 1 фото обязательно
       const totalPhotos = photos.length + (existingPhotos.length - photosToDelete.length);
-      console.log('Photo validation:', {
-        photos: photos.length,
-        existingPhotos: existingPhotos.length,
-        photosToDelete: photosToDelete.length,
+      console.log('📸 Photo validation check:', {
+        photosArray: photos,
+        photosLength: photos.length,
+        existingPhotos: existingPhotos,
+        existingPhotosLength: existingPhotos.length,
+        photosToDelete: photosToDelete,
+        photosToDeleteLength: photosToDelete.length,
         totalPhotos,
         isEditing
       });
       
+      // Проверяем что photos - это массив File объектов
+      if (photos.length > 0) {
+        console.log('📸 Photos array contents:');
+        photos.forEach((photo, idx) => {
+          console.log(`  Photo ${idx}:`, {
+            isFile: photo instanceof File,
+            name: photo.name,
+            type: photo.type,
+            size: photo.size,
+            constructor: photo.constructor.name
+          });
+        });
+      }
+      
       // При создании нового объявления должны быть новые фото
-      if (!isEditing && photos.length === 0) {
-        console.error('❌ No new photos for new listing');
-        setError('Por favor, agrega al menos una fotografía');
-        setLoading(false);
-        return;
+      if (!isEditing) {
+        if (photos.length === 0) {
+          console.error('❌ No photos for new listing');
+          setError('Por favor, agrega al menos una fotografía');
+          setLoading(false);
+          return;
+        }
+        // Проверяем что фото действительно File объекты
+        const validPhotos = photos.filter(p => p instanceof File);
+        if (validPhotos.length === 0) {
+          console.error('❌ No valid File objects in photos array');
+          setError('Por favor, agrega al menos una fotografía válida');
+          setLoading(false);
+          return;
+        }
+        console.log('✅ New listing: valid photos count:', validPhotos.length);
+      } else {
+        // При редактировании проверяем общее количество (новые + существующие - удаленные)
+        if (totalPhotos === 0) {
+          console.error('❌ No photos after edit');
+          setError('El anuncio debe tener al menos una fotografía');
+          setLoading(false);
+          return;
+        }
+        console.log('✅ Edit listing: total photos count:', totalPhotos);
       }
       
-      // При редактировании проверяем общее количество (новые + существующие - удаленные)
-      if (isEditing && totalPhotos === 0) {
-        console.error('❌ No photos after edit');
-        setError('El anuncio debe tener al menos una fotografía');
-        setLoading(false);
-        return;
-      }
-      
-      // Общая проверка на минимум 1 фото
-      if (totalPhotos === 0) {
-        console.error('❌ Total photos is 0');
-        setError('Por favor, agrega al menos una fotografía');
-        setLoading(false);
-        return;
-      }
-      
-      console.log('✅ Photo validation passed:', totalPhotos, 'photos');
+      console.log('✅ Photo validation passed');
       
       // Валидация цены: цена обязательна для всех категорий (либо указана цена, либо отмечено "Negociable")
       if (!formData.price && !formData.is_negotiable) {
@@ -812,7 +833,6 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
               multiple
               onChange={handlePhotoChange}
               className="file-input"
-              required
               id="photo-upload-input"
               style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
             />
