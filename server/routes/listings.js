@@ -642,18 +642,35 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
     
     // Если таблица не существует - это критическая ошибка инициализации БД
     if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
-      console.error('❌ CRITICAL: Database table does not exist. Attempting to initialize...');
-      // Пытаемся инициализировать БД
-      const { initDatabase } = require('../database/init');
+      console.error('❌ CRITICAL: Database table does not exist. Attempting to force create tables...');
+      // Пытаемся принудительно создать таблицы
+      const { forceCreateTables } = require('../database/init');
       try {
-        await initDatabase();
-        console.log('✅ Database initialized. Please try again.');
-        return res.status(500).json({ 
-          error: 'La base de datos no estaba inicializada. Por favor, intenta de nuevo.',
-          details: process.env.NODE_ENV === 'development' ? 'Database was just initialized' : undefined
-        });
+        await forceCreateTables();
+        
+        // Проверяем, что таблица теперь существует
+        const verifyCheck = await pool.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'listings'
+          );
+        `);
+        
+        if (verifyCheck.rows[0].exists) {
+          console.log('✅ Database tables created successfully. Retrying operation...');
+          // Возвращаем сообщение, что нужно повторить попытку
+          return res.status(503).json({ 
+            error: 'La base de datos se está inicializando. Por favor, intenta de nuevo en unos segundos.',
+            retry: true,
+            details: process.env.NODE_ENV === 'development' ? 'Database tables were just created' : undefined
+          });
+        } else {
+          throw new Error('Tables were not created after force creation');
+        }
       } catch (initError) {
-        console.error('❌ Failed to initialize database:', initError.message);
+        console.error('❌ Failed to force create database tables:', initError.message);
+        console.error('Init error stack:', initError.stack);
         return res.status(500).json({ 
           error: 'Error crítico: la base de datos no está configurada correctamente. Por favor, contacta al administrador.',
           details: process.env.NODE_ENV === 'development' ? initError.message : undefined

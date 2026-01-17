@@ -122,18 +122,93 @@ function splitSQLQueries(sql) {
   return queries;
 }
 
+// Функция для принудительного создания таблиц (используется при ошибке "relation does not exist")
+async function forceCreateTables() {
+  try {
+    console.log('🔧 Force creating database tables...');
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+    
+    // Удаляем CREATE DATABASE из схемы
+    const schemaWithoutDB = schema.replace(/CREATE DATABASE.*?;/i, '').trim();
+    
+    // Разделяем на отдельные запросы
+    const queries = splitSQLQueries(schemaWithoutDB);
+    
+    for (let i = 0; i < queries.length; i++) {
+      const query = queries[i].trim();
+      if (!query || query.startsWith('--')) continue;
+      
+      try {
+        await pool.query(query);
+        console.log(`✅ Force created statement ${i + 1}/${queries.length}`);
+      } catch (err) {
+        // Игнорируем ошибки если объекты уже существуют
+        if (err.message.includes('already exists') || err.message.includes('duplicate')) {
+          console.log(`⚠️  Statement ${i + 1}: Already exists`);
+        } else {
+          console.error(`❌ Error in force create statement ${i + 1}:`, err.message);
+        }
+      }
+    }
+    
+    // Выполняем миграции
+    const migrationFiles = [
+      'migration_add_apartment_fields.sql',
+      'migration_add_views.sql'
+    ];
+    
+    for (const migrationFile of migrationFiles) {
+      const migrationPath = path.join(__dirname, migrationFile);
+      if (fs.existsSync(migrationPath)) {
+        try {
+          const migration = fs.readFileSync(migrationPath, 'utf8');
+          await pool.query(migration);
+          console.log(`✅ Force migration ${migrationFile} executed`);
+        } catch (err) {
+          if (!err.message.includes('already exists') && !err.message.includes('duplicate')) {
+            console.warn(`⚠️  Force migration ${migrationFile} warning:`, err.message);
+          }
+        }
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error in forceCreateTables:', error.message);
+    throw error;
+  }
+}
+
 async function initDatabase() {
   try {
     console.log('🔄 Initializing database schema...');
     
+    // Проверяем подключение к БД
+    try {
+      await pool.query('SELECT NOW()');
+    } catch (connError) {
+      console.error('❌ Cannot connect to database:', connError.message);
+      throw new Error(`Database connection failed: ${connError.message}`);
+    }
+    
     // Проверяем, существует ли таблица listings
-    const checkTable = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        AND table_name = 'listings'
-      );
-    `);
+    let checkTable;
+    try {
+      checkTable = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'listings'
+        );
+      `);
+    } catch (checkError) {
+      console.error('❌ Error checking table existence:', checkError.message);
+      // Если ошибка при проверке, пытаемся создать таблицы
+      console.log('🔄 Attempting to create tables despite check error...');
+      await forceCreateTables();
+      return;
+    }
     
     if (checkTable.rows[0].exists) {
       console.log('✅ Table listings already exists, skipping schema creation');
@@ -160,12 +235,11 @@ async function initDatabase() {
         } catch (err) {
           // Игнорируем ошибки если объекты уже существуют
           if (err.message.includes('already exists') || 
-              err.message.includes('duplicate') ||
-              err.message.includes('already exists')) {
+              err.message.includes('duplicate')) {
             console.log(`⚠️  Statement ${i + 1}: Object already exists, skipping`);
           } else {
             console.error(`❌ Error executing statement ${i + 1}:`, err.message);
-            console.error(`Query: ${query.substring(0, 200)}...`);
+            console.error(`Query preview: ${query.substring(0, 200)}...`);
             // Не прерываем выполнение, продолжаем с другими запросами
           }
         }
@@ -190,7 +264,7 @@ async function initDatabase() {
           // Игнорируем ошибки если миграция уже выполнена
           if (err.message.includes('already exists') || 
               err.message.includes('duplicate') ||
-              err.message.includes('does not exist') && err.message.includes('column')) {
+              (err.message.includes('does not exist') && err.message.includes('column'))) {
             console.log(`⚠️  Migration ${migrationFile}: Already applied or column exists`);
           } else {
             console.warn(`⚠️  Warning executing migration ${migrationFile}:`, err.message);
@@ -213,17 +287,38 @@ async function initDatabase() {
     if (finalCheck.rows[0].exists) {
       console.log('✅ Database schema initialized successfully');
     } else {
-      throw new Error('Table listings was not created after initialization');
+      console.error('❌ Table listings does not exist after initialization, attempting force create...');
+      await forceCreateTables();
+      
+      // Проверяем еще раз
+      const recheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'listings'
+        );
+      `);
+      
+      if (!recheck.rows[0].exists) {
+        throw new Error('Table listings was not created after force initialization');
+      }
+      console.log('✅ Table listings created successfully after force initialization');
     }
   } catch (error) {
     console.error('❌ Error initializing database:', error.message);
+    console.error('Error code:', error.code);
     console.error('Stack:', error.stack);
-    // Не прерываем выполнение, если БД уже инициализирована
-    if (!error.message.includes('already exists')) {
-      throw error;
+    // Пробуем принудительно создать таблицы
+    try {
+      console.log('🔄 Attempting force table creation as fallback...');
+      await forceCreateTables();
+      console.log('✅ Force table creation completed');
+    } catch (forceError) {
+      console.error('❌ Force table creation also failed:', forceError.message);
+      throw error; // Выбрасываем оригинальную ошибку
     }
   }
 }
 
-module.exports = { pool, initDatabase };
+module.exports = { pool, initDatabase, forceCreateTables };
 
