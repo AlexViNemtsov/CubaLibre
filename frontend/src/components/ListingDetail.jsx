@@ -215,9 +215,27 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
       console.log('Delete response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Delete error:', errorData);
-        throw new Error(errorData.error || 'Error al eliminar el anuncio');
+        let errorMessage = 'Error al eliminar el anuncio';
+        
+        try {
+          const errorData = await response.json();
+          console.error('Delete error:', errorData);
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // Если не удалось распарсить JSON, используем статус
+          console.error('Failed to parse error response:', parseError);
+          if (response.status === 404) {
+            errorMessage = 'El anuncio no fue encontrado';
+          } else if (response.status === 403) {
+            errorMessage = 'No tienes permiso para eliminar este anuncio';
+          } else if (response.status === 401) {
+            errorMessage = 'Debes iniciar sesión para eliminar anuncios';
+          } else {
+            errorMessage = `Error ${response.status}: ${response.statusText || 'Error del servidor'}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -235,7 +253,16 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
       }
     } catch (error) {
       console.error('Error deleting listing:', error);
-      alert(`Error al eliminar el anuncio: ${error.message}. Por favor, intenta de nuevo.`);
+      
+      // Обработка сетевых ошибок
+      let errorMessage = error.message || 'Error al eliminar el anuncio';
+      
+      if (error.message === 'Load failed' || error.message === 'Failed to fetch' || 
+          error.message.includes('NetworkError') || error.message.includes('fetch')) {
+        errorMessage = 'Error de conexión. Verifica tu conexión a internet e intenta de nuevo.';
+      }
+      
+      alert(`Error al eliminar el anuncio: ${errorMessage}. Por favor, intenta de nuevo.`);
     } finally {
       setIsDeleting(false);
     }

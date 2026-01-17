@@ -1130,7 +1130,37 @@ router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
     }
   } catch (error) {
     console.error('Error deleting listing:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    // Если ошибка базы данных
+    if (error.code && error.code.startsWith('23')) {
+      return res.status(400).json({ error: 'Error de validación: ' + error.message });
+    }
+    
+    // Если ошибка подключения к БД
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || 
+        error.code === '28P01' || error.code === '3D000' || error.code === '57P01' ||
+        (error.message && (error.message.includes('connection') || error.message.includes('database')))) {
+      return res.status(500).json({ 
+        error: 'Error de conexión a la base de datos. Por favor, intenta de nuevo en unos momentos.'
+      });
+    }
+    
+    // Если таблица не существует
+    if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
+      return res.status(500).json({ 
+        error: 'Error: la base de datos no está configurada correctamente. Por favor, contacta al administrador.'
+      });
+    }
+    
+    // Общая ошибка
+    const errorMessage = error.message || 'Error interno del servidor';
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
