@@ -105,8 +105,21 @@ Bienvenido a Cuba Clasificados — tu tablón de anuncios local.
 // Команда /help
 bot.onText(/\/help/, (msg) => {
   const chatId = msg.chat.id;
+  const userId = msg.from.id;
   
-  bot.sendMessage(chatId, `
+  // Проверяем, является ли пользователь администратором
+  const adminId = process.env.TELEGRAM_ADMIN_ID;
+  const adminIds = process.env.TELEGRAM_ADMIN_IDS;
+  
+  let isAdmin = false;
+  if (adminId && String(userId) === String(adminId)) {
+    isAdmin = true;
+  } else if (adminIds) {
+    const adminIdList = adminIds.split(',').map(id => id.trim());
+    isAdmin = adminIdList.includes(String(userId));
+  }
+  
+  let helpText = `
 📖 Comandos disponibles:
 
 /start - Iniciar el bot
@@ -117,7 +130,13 @@ bot.onText(/\/help/, (msg) => {
 • Publica anuncios gratis
 • Contacta directamente con vendedores
 • Optimizado para conexiones lentas
-  `);
+  `;
+  
+  if (isAdmin) {
+    helpText += `\n\n🔨 Команды администратора:\n/delete <ID> - Удалить объявление по ID`;
+  }
+  
+  bot.sendMessage(chatId, helpText);
 });
 
 // Команда /app
