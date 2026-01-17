@@ -102,10 +102,32 @@ function optionalAuthenticateTelegram(req, res, next) {
   next();
 }
 
+// Функция проверки, является ли пользователь администратором
+function isAdmin(telegramUserId) {
+  if (!telegramUserId) return false;
+  
+  const adminId = process.env.TELEGRAM_ADMIN_ID;
+  const adminIds = process.env.TELEGRAM_ADMIN_IDS; // Поддержка нескольких админов через запятую
+  
+  // Проверяем один ID
+  if (adminId && String(telegramUserId) === String(adminId)) {
+    return true;
+  }
+  
+  // Проверяем список ID (через запятую)
+  if (adminIds) {
+    const adminIdList = adminIds.split(',').map(id => id.trim());
+    return adminIdList.includes(String(telegramUserId));
+  }
+  
+  return false;
+}
+
 module.exports = {
   authenticateTelegram,
   optionalAuthenticateTelegram,
-  verifyTelegramWebAppData
+  verifyTelegramWebAppData,
+  isAdmin
 };
 
 
