@@ -82,9 +82,18 @@ function SubscriptionGate({ children }) {
       console.log('📥 Response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('❌ API Error:', errorData);
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        const errorText = await response.text().catch(() => '');
+        console.error('❌ Subscription API non-OK response:', {
+          status: response.status,
+          statusText: response.statusText,
+          bodyPreview: errorText.slice(0, 200)
+        });
+
+        // Не блокируем пользователей, если проверка подписки недоступна/сломалась
+        console.warn('⚠️ Subscription check failed (non-OK). Allowing access.');
+        setIsSubscribed(true);
+        setErrorMessage(null);
+        return;
       }
 
       const data = await response.json();
@@ -101,16 +110,10 @@ function SubscriptionGate({ children }) {
       console.error('❌ Error checking subscription:', error);
       console.error('Error details:', error.message, error.stack);
       
-      // Если ошибка сети или API недоступен, разрешаем доступ (временно)
-      // Это позволит пользователям использовать приложение даже если проверка не работает
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        console.warn('⚠️  Network error, allowing access');
-        setIsSubscribed(true);
-        setErrorMessage(null);
-      } else {
-        setIsSubscribed(false);
-        setErrorMessage(`Error al verificar: ${error.message}`);
-      }
+      // Не блокируем пользователей, если проверка подписки недоступна/сломалась
+      console.warn('⚠️ Subscription check threw error. Allowing access.', error.message);
+      setIsSubscribed(true);
+      setErrorMessage(null);
     } finally {
       setIsChecking(false);
       setIsVerifying(false);
