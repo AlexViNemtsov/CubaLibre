@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const DEFAULT_API_URL = 'https://cubalibre.onrender.com/api';
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -14,7 +16,7 @@ export default defineConfig({
   define: {
     // Для production используем относительные пути или переменную окружения
     'import.meta.env.VITE_API_URL': JSON.stringify(
-      process.env.VITE_API_URL || '/api'
+      (process.env.VITE_API_URL || DEFAULT_API_URL).trim()
     )
   }
 });
