@@ -7,6 +7,15 @@ const botToken = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(botToken);
 const REQUIRED_CHANNEL = process.env.REQUIRED_CHANNEL || '@CubaClasificados';
 
+function normalizeTelegramChatId(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, '');
+  if (!raw) return '@CubaClasificados';
+  // numeric chat id like -100123...
+  if (/^-?\d+$/.test(raw)) return Number(raw);
+  if (raw.startsWith('@')) return raw;
+  return `@${raw}`;
+}
+
 // Проверка подписки на канал
 router.post('/check', async (req, res) => {
   try {
@@ -30,10 +39,8 @@ router.post('/check', async (req, res) => {
     }
     
     try {
-      // Формируем chatId правильно + убираем пробелы
-      let chatId = String(REQUIRED_CHANNEL || '').trim();
-      chatId = chatId.replace(/\s+/g, '');
-      if (!chatId.startsWith('@')) chatId = `@${chatId}`;
+      // Формируем chatId правильно (поддержка @username и -100... id)
+      const chatId = normalizeTelegramChatId(REQUIRED_CHANNEL);
 
       console.log('Checking subscription:', { chatId, userId, userIdType: typeof userId });
 

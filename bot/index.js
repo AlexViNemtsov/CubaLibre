@@ -13,6 +13,14 @@ const bot = new TelegramBot(token, { polling: true });
 const WEB_APP_URL = process.env.WEB_APP_URL || 'https://cuba-clasificados.online';
 const REQUIRED_CHANNEL = process.env.REQUIRED_CHANNEL || '@CubaClasificados'; // Канал, на который нужно подписаться
 
+function normalizeTelegramChatId(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, '');
+  if (!raw) return '@CubaClasificados';
+  if (/^-?\d+$/.test(raw)) return Number(raw);
+  if (raw.startsWith('@')) return raw;
+  return `@${raw}`;
+}
+
 // Настройка меню команд
 async function setupBotCommands() {
   try {
@@ -33,7 +41,7 @@ setupBotCommands();
 // Функция проверки подписки на канал
 async function checkChannelSubscription(userId) {
   try {
-    const chatId = REQUIRED_CHANNEL.startsWith('@') ? REQUIRED_CHANNEL : `@${REQUIRED_CHANNEL}`;
+    const chatId = normalizeTelegramChatId(REQUIRED_CHANNEL);
     const member = await bot.getChatMember(chatId, userId);
     
     // Статусы: 'member', 'administrator', 'creator' - подписан
