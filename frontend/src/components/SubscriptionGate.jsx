@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { getUser } from '../utils/telegram';
 import './SubscriptionGate.css';
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3000/api' : '/api');
+const API_URL = import.meta.env.DEV
+  ? 'http://localhost:3000/api'
+  : (import.meta.env.VITE_API_URL || 'https://cubalibre.onrender.com/api');
 const REQUIRED_CHANNEL = '@CubaClasificados';
 
 function SubscriptionGate({ children }) {

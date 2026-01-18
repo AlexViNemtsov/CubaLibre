@@ -13,6 +13,10 @@ import { getUser } from './utils/telegram';
 import './App.css';
 
 function App() {
+  const API_URL = import.meta.env.DEV
+    ? 'http://localhost:3000/api'
+    : (import.meta.env.VITE_API_URL || 'https://cubalibre.onrender.com/api');
+
   const [currentScreen, setCurrentScreen] = useState('home'); // Начинаем с главной страницы (категории)
   const [selectedCity, setSelectedCity] = useState('la-habana');
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
@@ -29,17 +33,6 @@ function App() {
   // Функция для загрузки объявления по ID
   const loadListingById = async (listingId) => {
     try {
-      const getApiUrl = () => {
-        if (import.meta.env.DEV) {
-          return 'http://localhost:3000/api';
-        }
-        if (import.meta.env.VITE_API_URL) {
-          return import.meta.env.VITE_API_URL;
-        }
-        return 'https://cubalibre.onrender.com/api';
-      };
-      
-      const API_URL = getApiUrl();
       const headers = {};
       const initData = getInitData();
       if (initData) {
@@ -72,6 +65,34 @@ function App() {
       });
     }
   };
+
+  useEffect(() => {
+    try {
+      // Инициализация Telegram Web App (если мы внутри Telegram)
+      initTelegramWebApp();
+
+      // Получаем initData для аутентификации
+      const data = getInitData();
+      setInitData(data);
+
+      // Настройка темы
+      if (isDarkMode()) {
+        document.body.classList.add('dark');
+      } else {
+        document.body.classList.remove('dark');
+      }
+
+      // Deep link: ?listing=123
+      const urlParams = new URLSearchParams(window.location.search);
+      const listingId = urlParams.get('listing');
+      if (listingId) {
+        loadListingById(listingId);
+      }
+    } catch (error) {
+      console.error('Error initializing app:', error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCitySelect = (city, neighborhood = null) => {
     setSelectedCity(city);
