@@ -89,10 +89,8 @@ function SubscriptionGate({ children }) {
           bodyPreview: errorText.slice(0, 200)
         });
 
-        // Не блокируем пользователей, если проверка подписки недоступна/сломалась
-        console.warn('⚠️ Subscription check failed (non-OK). Allowing access.');
-        setIsSubscribed(true);
-        setErrorMessage(null);
+        setIsSubscribed(false);
+        setErrorMessage('Error al verificar la suscripción. Por favor, intenta de nuevo.');
         return;
       }
 
@@ -109,11 +107,9 @@ function SubscriptionGate({ children }) {
     } catch (error) {
       console.error('❌ Error checking subscription:', error);
       console.error('Error details:', error.message, error.stack);
-      
-      // Не блокируем пользователей, если проверка подписки недоступна/сломалась
-      console.warn('⚠️ Subscription check threw error. Allowing access.', error.message);
-      setIsSubscribed(true);
-      setErrorMessage(null);
+
+      setIsSubscribed(false);
+      setErrorMessage(`Error al verificar: ${error.message}`);
     } finally {
       setIsChecking(false);
       setIsVerifying(false);

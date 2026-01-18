@@ -30,28 +30,28 @@ router.post('/check', async (req, res) => {
     }
     
     try {
-      // Формируем chatId правильно
-      let chatId = REQUIRED_CHANNEL;
-      if (!chatId.startsWith('@')) {
-        chatId = `@${chatId}`;
-      }
-      
+      // Формируем chatId правильно + убираем пробелы
+      let chatId = String(REQUIRED_CHANNEL || '').trim();
+      chatId = chatId.replace(/\s+/g, '');
+      if (!chatId.startsWith('@')) chatId = `@${chatId}`;
+
       console.log('Checking subscription:', { chatId, userId, userIdType: typeof userId });
-      
+
       const member = await bot.getChatMember(chatId, userId);
-      
+
       // Статусы: 'member', 'administrator', 'creator' - подписан
-      const isSubscribed = member.status === 'member' || 
-                          member.status === 'administrator' || 
-                          member.status === 'creator';
-      
-      console.log('Subscription check result:', { 
-        userId, 
-        status: member.status, 
-        isSubscribed 
+      const isSubscribed =
+        member.status === 'member' ||
+        member.status === 'administrator' ||
+        member.status === 'creator';
+
+      console.log('Subscription check result:', {
+        userId,
+        status: member.status,
+        isSubscribed
       });
-      
-      res.json({ 
+
+      return res.json({
         subscribed: isSubscribed,
         channel: REQUIRED_CHANNEL
       });
@@ -63,23 +63,8 @@ router.post('/check', async (req, res) => {
         response: error.response?.body,
         statusCode: error.response?.statusCode
       });
-      
-      // Обработка различных типов ошибок Telegram API
-      const errorMessage = error.message || '';
-      
-      // Если ошибка связана с форматом данных
-      if (errorMessage.includes('string did not match') || 
-          errorMessage.includes('Bad Request') ||
-          error.code === 'ETELEGRAM') {
-        console.warn('⚠️  Telegram API format error, allowing access');
-        return res.json({ 
-          subscribed: true,
-          channel: REQUIRED_CHANNEL,
-          warning: 'Subscription check error, access granted'
-        });
-      }
-      
-      // Если канал не найден или другая ошибка API
+
+      // Если канал не найден/бот не админ/бот не в канале — НЕ можем проверить, блокируем с понятной ошибкой
       if (error.response) {
         const statusCode = error.response.statusCode || error.response.status;
         const errorBody = error.response.body || error.response;
@@ -88,48 +73,31 @@ router.post('/check', async (req, res) => {
           statusCode,
           description: errorBody?.description || errorBody?.message
         });
-        
-        // Если пользователь не найден в канале (403) или канал не найден (400)
+
         if (statusCode === 400 || statusCode === 403) {
-          // В режиме разработки разрешаем доступ
-          const isDevelopment = process.env.NODE_ENV !== 'production';
-          if (isDevelopment) {
-            console.warn('⚠️  Development mode: Allowing access without channel check');
-            return res.json({ 
-              subscribed: true,
-              channel: REQUIRED_CHANNEL,
-              warning: 'Channel check skipped in development mode'
-            });
-          }
-          
-          // В production тоже разрешаем доступ если ошибка проверки
-          // Это позволит использовать приложение даже если бот не может проверить подписку
-          console.warn('⚠️  Channel check failed, allowing access to prevent blocking users');
-          return res.json({ 
-            subscribed: true,
+          return res.status(200).json({
+            subscribed: false,
             channel: REQUIRED_CHANNEL,
-            warning: 'Channel check failed, access granted'
+            error:
+              'No se pudo verificar la suscripción. Asegúrate de que el bot sea administrador del canal e inténtalo de nuevo.'
           });
         }
       }
-      
-      // Для всех остальных ошибок разрешаем доступ (чтобы не блокировать пользователей)
-      console.warn('⚠️  Unknown error in subscription check, allowing access');
-      return res.json({ 
-        subscribed: true,
+
+      // Любая другая ошибка — блокируем с понятной ошибкой
+      return res.status(200).json({
+        subscribed: false,
         channel: REQUIRED_CHANNEL,
-        error: 'Error checking subscription, access granted',
-        warning: 'Subscription check error, but access allowed'
+        error: `Error al verificar la suscripción: ${error.message || 'desconocido'}`
       });
     }
   } catch (error) {
     console.error('Error in subscription check:', error);
-    // Даже при критической ошибке разрешаем доступ
-    return res.json({ 
-      subscribed: true,
+    // При критической ошибке — блокируем
+    return res.status(200).json({
+      subscribed: false,
       channel: REQUIRED_CHANNEL,
-      error: 'Internal error, access granted',
-      warning: 'Subscription check failed, but access allowed'
+      error: 'Error interno al verificar la suscripción. Intenta de nuevo más tarde.'
     });
   }
 });
