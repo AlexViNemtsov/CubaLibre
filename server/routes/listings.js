@@ -22,36 +22,57 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// Настройка multer для загрузки изображений
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = process.env.UPLOAD_DIR || './uploads';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'listing-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Используем Cloudinary, если настроен, иначе локальное хранилище
+let upload;
+let useCloudinary = false;
 
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
+if (process.env.CLOUDINARY_CLOUD_NAME && 
+    process.env.CLOUDINARY_API_KEY && 
+    process.env.CLOUDINARY_API_SECRET) {
+  try {
+    const cloudinaryConfig = require('../utils/cloudinary');
+    upload = cloudinaryConfig.upload;
+    useCloudinary = true;
+    console.log('✅ Using Cloudinary for image storage');
+  } catch (error) {
+    console.warn('⚠️ Cloudinary config not found, falling back to local storage:', error.message);
+    useCloudinary = false;
   }
-});
+}
+
+// Fallback: локальное хранилище (для разработки или если Cloudinary не настроен)
+if (!useCloudinary) {
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = process.env.UPLOAD_DIR || './uploads';
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'listing-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+
+  upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = /jpeg|jpg|png|webp/;
+      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimetype = allowedTypes.test(file.mimetype);
+      
+      if (mimetype && extname) {
+        return cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'));
+      }
+    }
+  });
+  console.log('⚠️ Using local file storage (files will be lost on Render restart)');
+}
 
 // Middleware для обработки ошибок multer
 const handleMulterError = (err, req, res, next) => {
@@ -707,7 +728,14 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
       // Сохранение фотографий
       if (req.files && req.files.length > 0) {
         for (let i = 0; i < req.files.length; i++) {
-          const photoUrl = `/uploads/${req.files[i].filename}`;
+          let photoUrl;
+          if (useCloudinary && req.files[i].path) {
+            // Cloudinary возвращает полный URL в req.files[i].path
+            photoUrl = req.files[i].path;
+          } else {
+            // Локальное хранилище: относительный путь
+            photoUrl = `/uploads/${req.files[i].filename}`;
+          }
           await client.query(
             'INSERT INTO listing_photos (listing_id, photo_url, photo_order) VALUES ($1, $2, $3)',
             [listingId, photoUrl, i]
@@ -1264,18 +1292,25 @@ router.put('/:id', optionalAuthenticateTelegram, (req, res, next) => {
           
           if (photoResult.rows.length > 0) {
             const photoPath = photoResult.rows[0].photo_url;
-            // Удаляем файл
-            const fs = require('fs');
-            const path = require('path');
-            const uploadDir = process.env.UPLOAD_DIR || './uploads';
-            const fullPath = path.join(uploadDir, photoPath.replace('/uploads/', ''));
-            try {
-              if (fs.existsSync(fullPath)) {
-                fs.unlinkSync(fullPath);
+            
+            // Удаляем файл (только для локального хранилища)
+            if (!useCloudinary && photoPath.startsWith('/uploads')) {
+              const fs = require('fs');
+              const path = require('path');
+              const uploadDir = process.env.UPLOAD_DIR || './uploads';
+              const fullPath = path.join(uploadDir, photoPath.replace('/uploads/', ''));
+              try {
+                if (fs.existsSync(fullPath)) {
+                  fs.unlinkSync(fullPath);
+                }
+              } catch (err) {
+                console.warn('Error deleting photo file:', err.message);
               }
-            } catch (err) {
-              console.warn('Error deleting photo file:', err.message);
+            } else if (useCloudinary && photoPath.startsWith('http')) {
+              // Для Cloudinary можно удалить через API, но пока просто удаляем из БД
+              // TODO: добавить удаление из Cloudinary через API если нужно
             }
+            
             // Удаляем запись из БД по URL
             await client.query('DELETE FROM listing_photos WHERE photo_url = $1 AND listing_id = $2', [photoPath, id]);
           }
@@ -1291,7 +1326,14 @@ router.put('/:id', optionalAuthenticateTelegram, (req, res, next) => {
         let nextOrder = (maxOrder.rows[0].max_order || -1) + 1;
         
         for (let i = 0; i < req.files.length; i++) {
-          const photoUrl = `/uploads/${req.files[i].filename}`;
+          let photoUrl;
+          if (useCloudinary && req.files[i].path) {
+            // Cloudinary возвращает полный URL в req.files[i].path
+            photoUrl = req.files[i].path;
+          } else {
+            // Локальное хранилище: относительный путь
+            photoUrl = `/uploads/${req.files[i].filename}`;
+          }
           await client.query(
             'INSERT INTO listing_photos (listing_id, photo_url, photo_order) VALUES ($1, $2, $3)',
             [id, photoUrl, nextOrder++]
@@ -1455,15 +1497,21 @@ router.delete('/:id', optionalAuthenticateTelegram, async (req, res) => {
         [id]
       );
       
-      const fs = require('fs');
-      const path = require('path');
-      for (const photo of photos.rows) {
-        const photoPath = photo.photo_url;
-        const fullPath = path.join(process.env.UPLOAD_DIR || './uploads', photoPath.replace('/uploads/', ''));
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
+      // Удаляем файлы (только для локального хранилища)
+      if (!useCloudinary) {
+        const fs = require('fs');
+        const path = require('path');
+        for (const photo of photos.rows) {
+          const photoPath = photo.photo_url;
+          if (photoPath.startsWith('/uploads')) {
+            const fullPath = path.join(process.env.UPLOAD_DIR || './uploads', photoPath.replace('/uploads/', ''));
+            if (fs.existsSync(fullPath)) {
+              fs.unlinkSync(fullPath);
+            }
+          }
         }
       }
+      // Для Cloudinary файлы остаются в облаке (можно добавить удаление через API если нужно)
       
       // Удаляем записи о фотографиях
       await client.query('DELETE FROM listing_photos WHERE listing_id = $1', [id]);

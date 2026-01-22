@@ -88,12 +88,18 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
     if (listing.photos && listing.photos.length > 0) {
       const apiBase = getApiBaseUrl();
       return listing.photos.map((photo) => {
-        // Новый формат: относительный путь /uploads/...
+        // Cloudinary или другой внешний CDN: полный URL начинается с http/https
+        if (photo.startsWith('http://') || photo.startsWith('https://')) {
+          // Это уже полный URL (Cloudinary, CDN и т.д.) - используем как есть
+          return photo;
+        }
+
+        // Новый формат: относительный путь /uploads/... (локальное хранилище)
         if (photo.startsWith('/uploads')) {
           return `${apiBase}${photo}`;
         }
 
-        // Старый формат: полный URL на домен reg.ru
+        // Старый формат: полный URL на домен reg.ru (legacy)
         if (photo.startsWith('http')) {
           try {
             const url = new URL(photo);

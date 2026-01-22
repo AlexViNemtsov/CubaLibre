@@ -54,7 +54,16 @@ function ListingCard({ listing, onClick }) {
         });
       }
 
-      // Новый формат: относительный путь /uploads/...
+      // Cloudinary или другой внешний CDN: полный URL начинается с http/https
+      if (photo.startsWith('http://') || photo.startsWith('https://')) {
+        // Это уже полный URL (Cloudinary, CDN и т.д.) - используем как есть
+        if (import.meta.env.DEV || (listing.id && listing.id <= 5)) {
+          console.log('📸 Using Cloudinary/external URL:', photo);
+        }
+        return photo;
+      }
+
+      // Новый формат: относительный путь /uploads/... (локальное хранилище)
       if (photo.startsWith('/uploads')) {
         const finalUrl = `${apiBase}${photo}`;
         if (import.meta.env.DEV || (listing.id && listing.id <= 5)) {
@@ -63,7 +72,7 @@ function ListingCard({ listing, onClick }) {
         return finalUrl;
       }
 
-      // Старый формат: полный URL на домен reg.ru
+      // Старый формат: полный URL на домен reg.ru (legacy)
       if (photo.startsWith('http')) {
         try {
           const url = new URL(photo);
@@ -75,11 +84,6 @@ function ListingCard({ listing, onClick }) {
             }
             return finalUrl;
           }
-          // Если это другой домен (например, Render), используем как есть
-          if (import.meta.env.DEV || (listing.id && listing.id <= 5)) {
-            console.log('📸 Using original URL (other domain):', photo);
-          }
-          return photo;
         } catch (e) {
           console.warn('📸 Invalid photo URL:', photo, e);
           // Если URL некорректный, возвращаем placeholder
