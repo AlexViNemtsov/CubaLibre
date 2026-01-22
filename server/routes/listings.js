@@ -352,6 +352,17 @@ router.get('/', optionalAuthenticateTelegram, async (req, res) => {
     
     const result = await pool.query(query, params);
     
+    // Логируем примеры URL фото для отладки
+    if (result.rows.length > 0) {
+      const sampleListing = result.rows[0];
+      if (sampleListing.photos && sampleListing.photos.length > 0) {
+        console.log('📸 Sample photo URLs from DB:', {
+          listingId: sampleListing.id,
+          photos: sampleListing.photos.slice(0, 2) // Первые 2 фото
+        });
+      }
+    }
+    
     res.json({
       listings: result.rows,
       total: result.rows.length
@@ -420,7 +431,17 @@ router.get('/:id', optionalAuthenticateTelegram, async (req, res) => {
       return res.status(404).json({ error: 'Listing not found' });
     }
     
-    res.json(result.rows[0]);
+    const listing = result.rows[0];
+    
+    // Логируем URL фото для отладки
+    if (listing.photos && listing.photos.length > 0) {
+      console.log('📸 Photo URLs for listing:', {
+        listingId: listing.id,
+        photos: listing.photos
+      });
+    }
+    
+    res.json(listing);
   } catch (error) {
     console.error('Error fetching listing:', error);
     res.status(500).json({ error: 'Internal server error' });

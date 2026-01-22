@@ -44,9 +44,23 @@ function ListingCard({ listing, onClick }) {
       let photo = listing.photos[0];
       const apiBase = getApiBaseUrl();
 
+      // Логируем для отладки (только в dev или для первых нескольких объявлений)
+      if (import.meta.env.DEV || (listing.id && listing.id <= 5)) {
+        console.log('📸 ListingCard photo processing:', {
+          listingId: listing.id,
+          originalPhoto: photo,
+          apiBase: apiBase,
+          VITE_API_URL: import.meta.env.VITE_API_URL
+        });
+      }
+
       // Новый формат: относительный путь /uploads/...
       if (photo.startsWith('/uploads')) {
-        return `${apiBase}${photo}`;
+        const finalUrl = `${apiBase}${photo}`;
+        if (import.meta.env.DEV || (listing.id && listing.id <= 5)) {
+          console.log('📸 Final URL (relative):', finalUrl);
+        }
+        return finalUrl;
       }
 
       // Старый формат: полный URL на домен reg.ru
@@ -55,14 +69,27 @@ function ListingCard({ listing, onClick }) {
           const url = new URL(photo);
           // Если фото указывает на старый домен, переписываем на Render
           if (url.hostname === 'cuba-clasificados.online') {
-            return `${apiBase}${url.pathname}`;
+            const finalUrl = `${apiBase}${url.pathname}`;
+            if (import.meta.env.DEV || (listing.id && listing.id <= 5)) {
+              console.log('📸 Final URL (rewritten from old domain):', finalUrl);
+            }
+            return finalUrl;
           }
+          // Если это другой домен (например, Render), используем как есть
+          if (import.meta.env.DEV || (listing.id && listing.id <= 5)) {
+            console.log('📸 Using original URL (other domain):', photo);
+          }
+          return photo;
         } catch (e) {
-          // Если URL некорректный, просто падаем назад к исходному значению
+          console.warn('📸 Invalid photo URL:', photo, e);
+          // Если URL некорректный, возвращаем placeholder
+          return '/images/placeholder.svg';
         }
       }
 
-      // Любые другие случаи – используем как есть
+      // Если фото не начинается ни с /uploads, ни с http - это странно
+      console.warn('📸 Unexpected photo format:', photo, 'for listing', listing.id);
+      // Любые другие случаи – используем как есть (может быть относительный путь без /)
       return photo;
     }
     return '/images/placeholder.svg';
