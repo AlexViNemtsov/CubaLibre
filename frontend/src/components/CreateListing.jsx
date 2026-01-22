@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getInitData } from '../utils/telegram';
 import './CreateListing.css';
 
 // Определяем API URL
@@ -338,8 +339,13 @@ function CreateListing({ category, city, neighborhood, onBack, onCreated, initDa
       }
 
       const headers = {};
-      if (initData) {
-        headers['X-Telegram-Init-Data'] = initData;
+      // Получаем актуальный initData (из пропсов или напрямую из Telegram WebApp)
+      const currentInitData = initData || getInitData();
+      if (currentInitData) {
+        headers['X-Telegram-Init-Data'] = currentInitData;
+        console.log('✅ Sending initData in headers for', isEditing ? 'edit' : 'create');
+      } else {
+        console.warn('⚠️ No initData available for', isEditing ? 'edit' : 'create');
       }
 
       // Убеждаемся что URL правильный

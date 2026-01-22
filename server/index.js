@@ -13,7 +13,11 @@ let bot = null;
 if (process.env.TELEGRAM_BOT_TOKEN) {
   try {
     bot = require('../bot/index.js');
-    console.log('🤖 Telegram Bot initialized');
+    if (bot) {
+      console.log('🤖 Telegram Bot initialized');
+    } else {
+      console.log('⚠️  Telegram Bot polling disabled or not available');
+    }
   } catch (error) {
     console.error('⚠️  Failed to initialize Telegram bot:', error.message);
     console.log('💡 Bot will not be available, but server will continue running');
@@ -34,7 +38,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Статические файлы (загруженные изображения)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+  setHeaders: (res, path) => {
+    // Добавляем CORS заголовки для изображений
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cache-Control', 'public, max-age=31536000'); // Кешируем на год
+  }
+}));
 
 // API Routes
 app.use('/api/listings', listingsRouter);

@@ -368,10 +368,32 @@ router.get('/', optionalAuthenticateTelegram, async (req, res) => {
   }
 });
 
+// Проверить, является ли пользователь администратором (должен быть ПЕРЕД /:id)
+router.get('/check-admin', optionalAuthenticateTelegram, async (req, res) => {
+  try {
+    const telegramUser = req.telegramUser;
+    
+    if (!telegramUser || !telegramUser.id) {
+      return res.json({ isAdmin: false });
+    }
+    
+    const adminStatus = isAdmin(telegramUser.id);
+    res.json({ isAdmin: adminStatus });
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    res.json({ isAdmin: false });
+  }
+});
+
 // Получить одно объявление
 router.get('/:id', optionalAuthenticateTelegram, async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Защита: если id не число, это не объявление
+    if (isNaN(parseInt(id, 10))) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
     
     // Увеличиваем счетчик просмотров
     await pool.query(`
@@ -812,6 +834,18 @@ router.patch('/:id/status', optionalAuthenticateTelegram, async (req, res) => {
   try {
     // В режиме разработки разрешаем использовать тестового пользователя
     const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    // Логируем заголовки и telegramUser для отладки
+    console.log('🔍 PATCH /status - Request info:', {
+      method: req.method,
+      path: req.path,
+      hasTelegramUser: !!req.telegramUser,
+      telegramUser: req.telegramUser,
+      headers: Object.keys(req.headers),
+      hasInitDataHeader: !!req.headers['x-telegram-init-data'],
+      isDevelopment
+    });
+    
     let telegramUser = req.telegramUser;
     
     if (!telegramUser && isDevelopment) {
@@ -825,6 +859,11 @@ router.patch('/:id/status', optionalAuthenticateTelegram, async (req, res) => {
     }
     
     if (!telegramUser || !telegramUser.id) {
+      console.error('❌ PATCH /status - Telegram user not found:', {
+        hasTelegramUser: !!req.telegramUser,
+        telegramUser: req.telegramUser,
+        headers: req.headers
+      });
       return res.status(401).json({ error: 'Telegram authentication required' });
     }
     
@@ -841,8 +880,63 @@ router.patch('/:id/status', optionalAuthenticateTelegram, async (req, res) => {
       return res.status(404).json({ error: 'Listing not found' });
     }
     
-    // В режиме разработки пропускаем проверку владельца
-    if (!isDevelopment && listing.rows[0].telegram_id !== telegramUser.id) {
+    // Проверяем права: либо пользователь владелец, либо администратор
+    // Логирование для отладки
+    const listingTelegramId = listing.rows[0].telegram_id;
+    const userTelegramId = telegramUser.id;
+    
+    // Проверяем, является ли пользователь администратором (с защитой от ошибок)
+    let userIsAdmin = false;
+    try {
+      if (typeof isAdmin === 'function') {
+        userIsAdmin = isAdmin(userTelegramId);
+      } else {
+        console.error('isAdmin is not a function! Type:', typeof isAdmin);
+        // Fallback: проверяем напрямую
+        const adminId = process.env.TELEGRAM_ADMIN_ID;
+        const adminIds = process.env.TELEGRAM_ADMIN_IDS;
+        if (adminId && String(userTelegramId) === String(adminId)) {
+          userIsAdmin = true;
+        } else if (adminIds) {
+          const adminIdList = adminIds.split(',').map(id => id.trim());
+          userIsAdmin = adminIdList.includes(String(userTelegramId));
+        }
+      }
+    } catch (adminError) {
+      console.error('Error checking admin status:', adminError);
+      userIsAdmin = false;
+    }
+    
+    console.log('Status update authorization check:', {
+      listingId: id,
+      listingTelegramId: listingTelegramId,
+      listingTelegramIdType: typeof listingTelegramId,
+      userTelegramId: userTelegramId,
+      userTelegramIdType: typeof userTelegramId,
+      isDevelopment: isDevelopment,
+      userIsAdmin: userIsAdmin,
+      isAdminType: typeof isAdmin,
+      match: String(listingTelegramId) === String(userTelegramId)
+    });
+    
+    // Проверяем права: либо пользователь владелец, либо администратор
+    // Используем такое же сравнение, как в DELETE маршруте
+    const isOwner = String(listingTelegramId) === String(userTelegramId);
+    const canUpdate = isDevelopment || isOwner || userIsAdmin;
+    
+    if (!canUpdate) {
+      console.error('Status update authorization failed:', {
+        listingTelegramId,
+        userTelegramId,
+        listingTelegramIdType: typeof listingTelegramId,
+        userTelegramIdType: typeof userTelegramId,
+        isOwner,
+        userIsAdmin,
+        isDevelopment,
+        stringComparison: String(listingTelegramId) === String(userTelegramId),
+        normalizedComparison: listingTelegramId != null && userTelegramId != null && 
+                             String(listingTelegramId).trim() === String(userTelegramId).trim()
+      });
       return res.status(403).json({ error: 'Not authorized' });
     }
     
@@ -859,11 +953,36 @@ router.patch('/:id/status', optionalAuthenticateTelegram, async (req, res) => {
 });
 
 // Редактировать объявление
-router.put('/:id', optionalAuthenticateTelegram, upload.array('photos', 5), handleMulterError, async (req, res) => {
+router.put('/:id', optionalAuthenticateTelegram, (req, res, next) => {
+  // Логируем ДО обработки файлов
+  console.log('🔍 PUT /:id - Request received:', {
+    method: req.method,
+    path: req.path,
+    listingId: req.params.id,
+    hasTelegramUser: !!req.telegramUser,
+    telegramUser: req.telegramUser,
+    contentType: req.headers['content-type']
+  });
+  next();
+}, upload.array('photos', 5), handleMulterError, async (req, res) => {
   try {
     // В режиме разработки разрешаем редактировать объявления без Telegram аутентификации
     const isDevelopment = process.env.NODE_ENV !== 'production';
     let telegramUser = req.telegramUser;
+    
+    // Логируем заголовки и telegramUser для отладки
+    console.log('🔍 PUT /:id - After file upload:', {
+      method: req.method,
+      path: req.path,
+      listingId: req.params.id,
+      hasTelegramUser: !!req.telegramUser,
+      telegramUser: req.telegramUser,
+      filesCount: req.files ? req.files.length : 0,
+      headers: Object.keys(req.headers),
+      hasInitDataHeader: !!req.headers['x-telegram-init-data'],
+      initDataLength: req.headers['x-telegram-init-data']?.length || 0,
+      isDevelopment
+    });
     
     // Если нет Telegram пользователя в dev режиме, создаем тестового
     if (!telegramUser && isDevelopment) {
@@ -877,10 +996,24 @@ router.put('/:id', optionalAuthenticateTelegram, upload.array('photos', 5), hand
     }
     
     if (!telegramUser || !telegramUser.id) {
+      console.error('❌ PUT /:id - Telegram user not found:', {
+        hasTelegramUser: !!req.telegramUser,
+        telegramUser: req.telegramUser,
+        hasInitData: !!req.headers['x-telegram-init-data'],
+        headers: Object.keys(req.headers)
+      });
       return res.status(401).json({ error: 'Telegram authentication required' });
     }
     
     const { id } = req.params;
+    
+    // Защита: если id не число, это не объявление
+    if (isNaN(parseInt(id, 10))) {
+      console.error('❌ PUT /:id - Invalid listing ID:', id);
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    console.log('🔍 PUT /:id - Fetching listing:', id);
     
     // Проверяем, что пользователь является владельцем объявления
     const listingCheck = await pool.query(
@@ -888,12 +1021,71 @@ router.put('/:id', optionalAuthenticateTelegram, upload.array('photos', 5), hand
       [id]
     );
     
+    console.log('🔍 PUT /:id - Listing check result:', {
+      found: listingCheck.rows.length > 0,
+      listingId: listingCheck.rows[0]?.id,
+      ownerTelegramId: listingCheck.rows[0]?.telegram_id
+    });
+    
     if (listingCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Listing not found' });
     }
     
-    // В dev режиме пропускаем проверку владельца
-    if (!isDevelopment && listingCheck.rows[0].telegram_id !== telegramUser.id) {
+    // Проверяем права: либо пользователь владелец, либо администратор
+    const listingTelegramId = listingCheck.rows[0].telegram_id;
+    const userTelegramId = telegramUser.id;
+    
+    // Проверяем, является ли пользователь администратором (с защитой от ошибок)
+    let userIsAdmin = false;
+    try {
+      if (typeof isAdmin === 'function') {
+        userIsAdmin = isAdmin(userTelegramId);
+      } else {
+        console.error('isAdmin is not a function! Type:', typeof isAdmin);
+        // Fallback: проверяем напрямую
+        const adminId = process.env.TELEGRAM_ADMIN_ID;
+        const adminIds = process.env.TELEGRAM_ADMIN_IDS;
+        if (adminId && String(userTelegramId) === String(adminId)) {
+          userIsAdmin = true;
+        } else if (adminIds) {
+          const adminIdList = adminIds.split(',').map(id => id.trim());
+          userIsAdmin = adminIdList.includes(String(userTelegramId));
+        }
+      }
+    } catch (adminError) {
+      console.error('Error checking admin status:', adminError);
+      userIsAdmin = false;
+    }
+    
+    console.log('Edit authorization check:', {
+      listingId: id,
+      listingTelegramId: listingTelegramId,
+      listingTelegramIdType: typeof listingTelegramId,
+      userTelegramId: userTelegramId,
+      userTelegramIdType: typeof userTelegramId,
+      isDevelopment: isDevelopment,
+      userIsAdmin: userIsAdmin,
+      isAdminType: typeof isAdmin,
+      match: String(listingTelegramId) === String(userTelegramId)
+    });
+    
+    // Используем такое же сравнение, как в DELETE и PATCH маршрутах
+    const isOwner = String(listingTelegramId) === String(userTelegramId);
+    const canEdit = isDevelopment || isOwner || userIsAdmin;
+    
+    if (!canEdit) {
+      console.error('Edit authorization failed:', {
+        listingTelegramId,
+        userTelegramId,
+        listingTelegramIdType: typeof listingTelegramId,
+        userTelegramIdType: typeof userTelegramId,
+        isOwner,
+        userIsAdmin,
+        isDevelopment,
+        stringComparison: String(listingTelegramId) === String(userTelegramId),
+        normalizedComparison: listingTelegramId != null && userTelegramId != null && 
+                             String(listingTelegramId).trim() === String(userTelegramId).trim()
+      });
       return res.status(403).json({ error: 'Not authorized' });
     }
     
@@ -1113,23 +1305,6 @@ router.put('/:id', optionalAuthenticateTelegram, upload.array('photos', 5), hand
   } catch (error) {
     console.error('Error updating listing:', error);
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Проверить, является ли пользователь администратором
-router.get('/check-admin', optionalAuthenticateTelegram, async (req, res) => {
-  try {
-    const telegramUser = req.telegramUser;
-    
-    if (!telegramUser || !telegramUser.id) {
-      return res.json({ isAdmin: false });
-    }
-    
-    const adminStatus = isAdmin(telegramUser.id);
-    res.json({ isAdmin: adminStatus });
-  } catch (error) {
-    console.error('Error checking admin status:', error);
-    res.json({ isAdmin: false });
   }
 });
 

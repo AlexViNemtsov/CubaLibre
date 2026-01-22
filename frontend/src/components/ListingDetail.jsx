@@ -15,6 +15,14 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
+// Базовый URL без /api для изображений
+const getApiBaseUrl = () => {
+  return (
+    import.meta.env.VITE_API_URL?.replace('/api', '') ||
+    (import.meta.env.DEV ? 'http://localhost:3000' : 'https://cubalibre.onrender.com')
+  );
+};
+
 function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -78,11 +86,28 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
 
   const getPhotos = () => {
     if (listing.photos && listing.photos.length > 0) {
-      const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 
-                    (import.meta.env.DEV ? 'http://localhost:3000' : 'https://cubalibre.onrender.com');
-      return listing.photos.map(photo => 
-        photo.startsWith('/uploads') ? `${apiUrl}${photo}` : photo
-      );
+      const apiBase = getApiBaseUrl();
+      return listing.photos.map((photo) => {
+        // Новый формат: относительный путь /uploads/...
+        if (photo.startsWith('/uploads')) {
+          return `${apiBase}${photo}`;
+        }
+
+        // Старый формат: полный URL на домен reg.ru
+        if (photo.startsWith('http')) {
+          try {
+            const url = new URL(photo);
+            if (url.hostname === 'cuba-clasificados.online') {
+              return `${apiBase}${url.pathname}`;
+            }
+          } catch (e) {
+            // Некорректный URL – отдаем как есть
+          }
+        }
+
+        // Остальное – без изменений
+        return photo;
+      });
     }
     return ['/images/placeholder.svg'];
   };
@@ -186,7 +211,29 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
       const initData = getInitData();
       if (initData) {
         headers['X-Telegram-Init-Data'] = initData;
+        // Парсим initData для логирования (без чувствительных данных)
+        try {
+          const urlParams = new URLSearchParams(initData);
+          const userStr = urlParams.get('user');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            console.log('Telegram user from initData (mark as sold):', {
+              id: user.id,
+              username: user.username,
+              first_name: user.first_name
+            });
+          }
+        } catch (e) {
+          console.warn('Could not parse user from initData:', e);
+        }
+      } else {
+        console.warn('⚠️ No initData available for mark as sold request');
       }
+
+      console.log('Marking listing as sold:', listing.id);
+      console.log('Listing owner (if available):', listing.telegram_id);
+      console.log('API URL:', `${API_URL}/listings/${listing.id}/status`);
+      console.log('Headers:', Object.keys(headers));
 
       const response = await fetch(`${API_URL}/listings/${listing.id}/status`, {
         method: 'PATCH',
@@ -194,9 +241,30 @@ function ListingDetail({ listing, onBack, onEdit, onDelete, onSuccess }) {
         body: JSON.stringify({ status: 'sold' })
       });
 
+      console.log('Mark as sold response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || 'Error al marcar el anuncio como vendido');
+        let errorMessage = 'Error al marcar el anuncio como vendido';
+        
+        try {
+          const errorData = await response.json();
+          console.error('Mark as sold error:', errorData);
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // Если не удалось распарсить JSON, используем статус
+          console.error('Failed to parse error response:', parseError);
+          if (response.status === 404) {
+            errorMessage = 'El anuncio no fue encontrado';
+          } else if (response.status === 403) {
+            errorMessage = 'No tienes permiso para marcar este anuncio como vendido';
+          } else if (response.status === 401) {
+            errorMessage = 'Debes iniciar sesión para marcar anuncios como vendidos';
+          } else {
+            errorMessage = `Error ${response.status}: ${response.statusText || 'Error del servidor'}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

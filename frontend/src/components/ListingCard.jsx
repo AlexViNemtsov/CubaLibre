@@ -31,19 +31,42 @@ function ListingCard({ listing, onClick }) {
     return 'Precio no especificado';
   };
 
-      const getMainPhoto = () => {
-        if (listing.photos && listing.photos.length > 0) {
-          const photo = listing.photos[0];
-          // Если фото начинается с /uploads, добавляем базовый URL API
-          if (photo.startsWith('/uploads')) {
-            const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 
-                          (import.meta.env.DEV ? 'http://localhost:3000' : 'https://cubalibre.onrender.com');
-            return `${apiUrl}${photo}`;
+  // Базовый URL API (без /api) для изображений
+  const getApiBaseUrl = () => {
+    return (
+      import.meta.env.VITE_API_URL?.replace('/api', '') ||
+      (import.meta.env.DEV ? 'http://localhost:3000' : 'https://cubalibre.onrender.com')
+    );
+  };
+
+  const getMainPhoto = () => {
+    if (listing.photos && listing.photos.length > 0) {
+      let photo = listing.photos[0];
+      const apiBase = getApiBaseUrl();
+
+      // Новый формат: относительный путь /uploads/...
+      if (photo.startsWith('/uploads')) {
+        return `${apiBase}${photo}`;
+      }
+
+      // Старый формат: полный URL на домен reg.ru
+      if (photo.startsWith('http')) {
+        try {
+          const url = new URL(photo);
+          // Если фото указывает на старый домен, переписываем на Render
+          if (url.hostname === 'cuba-clasificados.online') {
+            return `${apiBase}${url.pathname}`;
           }
-          return photo;
+        } catch (e) {
+          // Если URL некорректный, просто падаем назад к исходному значению
         }
-        return '/images/placeholder.svg';
-      };
+      }
+
+      // Любые другие случаи – используем как есть
+      return photo;
+    }
+    return '/images/placeholder.svg';
+  };
 
   const getLocation = () => {
     // Для недвижимости (rent) всегда показываем город, если он есть

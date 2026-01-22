@@ -8,7 +8,39 @@ if (!token) {
   process.exit(1);
 }
 
-const bot = new TelegramBot(token, { polling: true });
+// Используем webhook вместо polling в production, чтобы избежать конфликтов
+const useWebhook = process.env.USE_WEBHOOK === 'true';
+let bot;
+
+if (useWebhook) {
+  bot = new TelegramBot(token);
+  console.log('📡 Bot configured for webhook mode');
+} else {
+  // В production отключаем polling, если есть другой экземпляр
+  const disablePolling = process.env.DISABLE_BOT_POLLING === 'true';
+  if (disablePolling) {
+    console.log('⚠️ Bot polling disabled via DISABLE_BOT_POLLING');
+    bot = null; // Бот не будет запущен
+  } else {
+    bot = new TelegramBot(token, { 
+      polling: {
+        interval: 1000,
+        autoStart: false // Не запускаем автоматически
+      }
+    });
+    // Запускаем polling с обработкой ошибок
+    bot.startPolling().catch(err => {
+      if (err.response && err.response.statusCode === 409) {
+        console.warn('⚠️ Bot polling conflict detected. Another instance may be running.');
+        console.warn('💡 Set DISABLE_BOT_POLLING=true to disable polling, or use webhook mode.');
+        // Не падаем, просто не используем polling
+        bot = null;
+      } else {
+        throw err;
+      }
+    });
+  }
+}
 
 const WEB_APP_URL = process.env.WEB_APP_URL || 'https://cuba-clasificados.online';
 const REQUIRED_CHANNEL = process.env.REQUIRED_CHANNEL || '@CubaClasificados'; // Канал, на который нужно подписаться
@@ -35,11 +67,17 @@ async function setupBotCommands() {
   }
 }
 
-// Настройка меню команд при запуске
-setupBotCommands();
+// Настройка меню команд при запуске (только если бот создан)
+if (bot) {
+  setupBotCommands();
+}
 
 // Функция проверки подписки на канал
 async function checkChannelSubscription(userId) {
+  if (!bot) {
+    // Если бот не создан, разрешаем доступ (для разработки)
+    return true;
+  }
   try {
     const chatId = normalizeTelegramChatId(REQUIRED_CHANNEL);
     const member = await bot.getChatMember(chatId, userId);
@@ -54,8 +92,9 @@ async function checkChannelSubscription(userId) {
   }
 }
 
-// Команда /start
-bot.onText(/\/start/, async (msg) => {
+// Команда /start (только если бот создан)
+if (bot) {
+  bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const firstName = msg.from.first_name;
@@ -110,8 +149,8 @@ Bienvenido a Cuba Clasificados — tu tablón de anuncios local.
   });
 });
 
-// Команда /help
-bot.onText(/\/help/, (msg) => {
+  // Команда /help
+  bot.onText(/\/help/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   
@@ -144,11 +183,11 @@ bot.onText(/\/help/, (msg) => {
     helpText += `\n\n🔨 Команды администратора:\n/delete <ID> - Удалить объявление по ID`;
   }
   
-  bot.sendMessage(chatId, helpText);
-});
+    bot.sendMessage(chatId, helpText);
+  });
 
-// Команда /app
-bot.onText(/\/app/, async (msg) => {
+  // Команда /app
+  bot.onText(/\/app/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   
@@ -192,8 +231,8 @@ Después de suscribirte, usa /app nuevamente.
   });
 });
 
-// Команда для администраторов: удалить объявление
-bot.onText(/\/delete\s+(\d+)/, async (msg, match) => {
+  // Команда для администраторов: удалить объявление
+  bot.onText(/\/delete\s+(\d+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const listingId = match[1];
@@ -284,8 +323,8 @@ bot.onText(/\/delete\s+(\d+)/, async (msg, match) => {
   }
 });
 
-// Обработка callback queries
-bot.on('callback_query', async (query) => {
+  // Обработка callback queries
+  bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id;
   const data = query.data;
@@ -331,8 +370,8 @@ Por favor, suscríbete y vuelve a intentar.
   }
 });
 
-// Обработка всех текстовых сообщений (если пользователь пишет что-то, что не команда)
-bot.on('message', (msg) => {
+  // Обработка всех текстовых сообщений (если пользователь пишет что-то, что не команда)
+  bot.on('message', (msg) => {
   // Пропускаем команды (они обрабатываются через onText)
   if (msg.text && msg.text.startsWith('/')) {
     return;
@@ -362,8 +401,8 @@ O simplemente toca el botón de menú (☰) para ver los comandos disponibles.
   }
 });
 
-// Обработка ошибок бота
-bot.on('polling_error', (error) => {
+  // Обработка ошибок бота
+  bot.on('polling_error', (error) => {
   console.error('❌ Polling error:', error.message);
   if (error.code === 'ETELEGRAM' && error.response && error.response.statusCode === 401) {
     console.error('❌ Invalid bot token! Check TELEGRAM_BOT_TOKEN in .env');
@@ -371,14 +410,25 @@ bot.on('polling_error', (error) => {
   }
 });
 
-// Обработка ошибок при отправке сообщений
-bot.on('error', (error) => {
-  console.error('❌ Bot error:', error.message);
-});
+  // Обработка ошибок при отправке сообщений
+  bot.on('error', (error) => {
+    console.error('❌ Bot error:', error.message);
+  });
 
-console.log('🤖 Telegram Bot is running...');
-console.log(`📱 Web App URL: ${WEB_APP_URL}`);
-console.log(`📢 Required channel: ${REQUIRED_CHANNEL}`);
+  console.log('🤖 Telegram Bot is running...');
+  console.log(`📱 Web App URL: ${WEB_APP_URL}`);
+  console.log(`📢 Required channel: ${REQUIRED_CHANNEL}`);
+} else {
+  console.log('⚠️ Telegram Bot not initialized (polling disabled or webhook mode)');
+  console.log(`📱 Web App URL: ${WEB_APP_URL}`);
+  console.log(`📢 Required channel: ${REQUIRED_CHANNEL}`);
+}
 
-module.exports = bot;
+// Экспортируем бот только если он был создан
+if (bot) {
+  module.exports = bot;
+} else {
+  // Если бот не создан (polling отключен), экспортируем null
+  module.exports = null;
+}
 
