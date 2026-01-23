@@ -585,7 +585,8 @@ router.post('/', optionalAuthenticateTelegram, upload.array('photos', 5), handle
     }
     
     // Проверка на дубляжи по фотографиям (если есть загруженные фотографии)
-    if (req.files && req.files.length > 0) {
+    // ВАЖНО: при использовании Cloudinary локальных файлов нет, поэтому пропускаем проверку по хешам
+    if (!useCloudinary && req.files && req.files.length > 0) {
       // Вычисляем хеши загруженных фотографий
       const newPhotoHashes = [];
       for (const file of req.files) {
