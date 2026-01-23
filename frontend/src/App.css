@@ -127,27 +127,27 @@
 
 .categories-header-text {
   text-align: center;
-  padding: 48px 24px 32px;
+  padding: 60px 24px 40px;
   margin-bottom: 0;
   background: transparent;
 }
 
 .categories-header-text h2 {
-  font-size: clamp(32px, 8vw, 48px);
-  font-weight: 900;
-  margin: 0 0 12px 0;
-  color: #ffffff;
-  letter-spacing: -1.5px;
-  line-height: 1.1;
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.15);
+  display: none; /* Убираем дублирующийся заголовок */
 }
 
-.categories-header-text p {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 500;
+.categories-header-text .main-tagline {
+  font-size: clamp(22px, 5.5vw, 32px);
+  font-weight: 700;
   margin: 0;
-  letter-spacing: 0.2px;
+  color: #ffffff;
+  letter-spacing: 0.4px;
+  line-height: 1.5;
+  text-shadow: 0 3px 16px rgba(0, 0, 0, 0.3),
+               0 1px 4px rgba(0, 0, 0, 0.2);
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
 
 .feed-screen {

@@ -29,6 +29,7 @@ function App() {
   const [showCityModal, setShowCityModal] = useState(false);
   const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const [hasSeenCitySelection, setHasSeenCitySelection] = useState(false);
 
   // Функция для загрузки объявления по ID
   const loadListingById = async (listingId) => {
@@ -87,6 +88,16 @@ function App() {
       const listingId = urlParams.get('listing');
       if (listingId) {
         loadListingById(listingId);
+        return; // Не показываем выбор города при deep link
+      }
+
+      // Показываем выбор города при первом заходе (если еще не показывали)
+      const hasSeenCitySelectionBefore = localStorage.getItem('hasSeenCitySelection');
+      if (!hasSeenCitySelectionBefore && currentScreen === 'home') {
+        // Небольшая задержка для плавного появления
+        setTimeout(() => {
+          setShowCityModal(true);
+        }, 500);
       }
     } catch (error) {
       console.error('Error initializing app:', error);
@@ -98,6 +109,9 @@ function App() {
     setSelectedCity(city);
     setSelectedNeighborhood(neighborhood);
     setShowCityModal(false);
+    // Сохраняем, что пользователь уже видел выбор города
+    localStorage.setItem('hasSeenCitySelection', 'true');
+    setHasSeenCitySelection(true);
     // Обновляем список объявлений при смене города
     if (currentScreen === 'feed') {
       setFeedRefreshKey(prev => prev + 1);
@@ -260,8 +274,7 @@ function App() {
           </div>
           <div className="home-content">
             <div className="categories-header-text">
-              <h2>Cuba Clasificados</h2>
-              <p>Plataforma gratuita para publicar y buscar anuncios</p>
+              <p className="main-tagline">Plataforma gratuita para publicar y buscar anuncios</p>
             </div>
             <div className="categories-section">
               <div className="section-label">Selecciona una categoría</div>

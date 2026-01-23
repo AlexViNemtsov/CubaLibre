@@ -25,6 +25,7 @@ const crypto = require('crypto');
 // Используем Cloudinary, если настроен, иначе локальное хранилище
 let upload;
 let useCloudinary = false;
+let cloudinary = null;
 
 if (process.env.CLOUDINARY_CLOUD_NAME && 
     process.env.CLOUDINARY_API_KEY && 
@@ -32,6 +33,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME &&
   try {
     const cloudinaryConfig = require('../utils/cloudinary');
     upload = cloudinaryConfig.upload;
+    cloudinary = cloudinaryConfig.cloudinary;
     useCloudinary = true;
     console.log('✅ Using Cloudinary for image storage');
   } catch (error) {
@@ -72,6 +74,36 @@ if (!useCloudinary) {
     }
   });
   console.log('⚠️ Using local file storage (files will be lost on Render restart)');
+}
+
+// Вспомогательная функция: получить public_id Cloudinary из полного URL
+function getCloudinaryPublicId(photoUrl) {
+  try {
+    const url = new URL(photoUrl);
+    const pathname = url.pathname; // /<res_type>/upload/v123/folder/file.ext или /image/upload/...
+    const uploadIndex = pathname.indexOf('/upload/');
+    if (uploadIndex === -1) return null;
+    
+    // Часть после /upload/
+    let publicPath = pathname.substring(uploadIndex + '/upload/'.length); // v123/folder/file.ext
+    const parts = publicPath.split('/').filter(Boolean);
+    
+    // Убираем версию v123, если есть
+    if (parts[0] && /^v\d+$/.test(parts[0])) {
+      parts.shift();
+    }
+    
+    if (parts.length === 0) return null;
+    
+    const last = parts.pop();
+    const withoutExt = last.replace(/\.[^/.]+$/, '');
+    parts.push(withoutExt);
+    
+    return parts.join('/');
+  } catch (e) {
+    console.warn('⚠️ Could not parse Cloudinary public_id from URL:', photoUrl, e.message);
+    return null;
+  }
 }
 
 // Middleware для обработки ошибок multer
@@ -1308,8 +1340,16 @@ router.put('/:id', optionalAuthenticateTelegram, (req, res, next) => {
                 console.warn('Error deleting photo file:', err.message);
               }
             } else if (useCloudinary && photoPath.startsWith('http')) {
-              // Для Cloudinary можно удалить через API, но пока просто удаляем из БД
-              // TODO: добавить удаление из Cloudinary через API если нужно
+              // Для Cloudinary удаляем изображение через API по public_id
+              const publicId = getCloudinaryPublicId(photoPath);
+              if (publicId && cloudinary) {
+                try {
+                  await cloudinary.uploader.destroy(publicId);
+                  console.log('🗑️ Deleted image from Cloudinary (edit):', publicId);
+                } catch (err) {
+                  console.warn('⚠️ Failed to delete image from Cloudinary (edit):', publicId, err.message);
+                }
+              }
             }
             
             // Удаляем запись из БД по URL
